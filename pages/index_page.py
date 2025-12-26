@@ -1,7 +1,9 @@
 import sys
 from PyQt5 import QtWidgets, QtCore, QtGui, QtNetwork
 from PyQt5.QtCore import QUrl, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve
-
+import webbrowser
+from widgets.common import SettingsManager
+from PyQt5.QtWidgets import QMessageBox
 GLOBAL_NETWORK_MANAGER = QtNetwork.QNetworkAccessManager()
 
 class HelpOverlay(QtWidgets.QWidget):
@@ -191,6 +193,10 @@ class IndexPage(QtWidgets.QWidget):
         self.telegram_icon_pixmap = QtGui.QPixmap("assets/tg.png").scaled(18, 18,QtCore.Qt.KeepAspectRatio,QtCore.Qt.SmoothTransformation)
         self.btn_icon_pixmap = QtGui.QPixmap("assets/btn.png").scaled(18, 18,QtCore.Qt.KeepAspectRatio,QtCore.Qt.SmoothTransformation)
         self.help_overlay = None
+        self.settings = SettingsManager()
+
+        if not self.settings.get("index", "link", False):
+            self.show_first_launch_dialog()
 
         self.init_styles()
         self.build_ui()
@@ -254,10 +260,14 @@ class IndexPage(QtWidgets.QWidget):
         left_container.setSpacing(8)
 
         btn_row = QtWidgets.QHBoxLayout()
+        btn_row1 = QtWidgets.QHBoxLayout()
 
         btn_icon = QtWidgets.QLabel()
         btn_icon.setPixmap(self.btn_icon_pixmap)
+        telegram_icon = QtWidgets.QLabel()
+        telegram_icon.setPixmap(self.telegram_icon_pixmap)
         btn_row.addWidget(btn_icon)
+        btn_row1.addWidget(telegram_icon)
 
                 
         btn = QtWidgets.QPushButton("Поддержка")
@@ -272,15 +282,38 @@ class IndexPage(QtWidgets.QWidget):
                 padding: 0px;
             }
             QPushButton:hover {
-                color: #50ffdd;
+                color: #8FFFE8;
             }
         """)
         btn.clicked.connect(self.show_help)
+
+        btn1 = QtWidgets.QPushButton("Канал бота")
+        btn1.setCursor(QtCore.Qt.PointingHandCursor)
+        btn1.setStyleSheet("""
+            QPushButton {
+                background: transparent; 
+                border: none; 
+                color: #FF0A0A; 
+                font-size: 14px; 
+                text-decoration: underline;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                color: #FF4D4D;
+            }
+        """)
+        btn1.clicked.connect(lambda: webbrowser.open("https://t.me/bot_gta5blast"))
+
+
         layout.addWidget(btn, alignment=QtCore.Qt.AlignCenter)
+        layout.addWidget(btn1, alignment=QtCore.Qt.AlignCenter)
         btn_row.addWidget(btn, alignment=QtCore.Qt.AlignLeft)
+        btn_row1.addWidget(btn1, alignment=QtCore.Qt.AlignLeft)
         btn_row.addWidget(btn)
+        btn_row1.addWidget(btn1)
 
         left_container.addLayout(btn_row)
+        left_container.addLayout(btn_row1)
 
         self.online_label = QtWidgets.QLabel("🌐 Запусков сегодня: ...")
         left_container.addWidget(self.online_label)
@@ -320,3 +353,22 @@ class IndexPage(QtWidgets.QWidget):
 
     def _clear_ref(self):
         self.help_overlay = None
+
+    def _save_settings(self):
+        self.settings.save_group("index", {
+            "link": False
+        })
+
+    def show_first_launch_dialog(self):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("🔔 Внимание!")
+        msg.setText("У бота появился официальный Telegram-канал!\nЧтобы не потерять актуальную ссылку и получать все обновления, подпишитесь на канал прямо сейчас.")
+        msg.setIcon(QMessageBox.Information)
+        open_btn = msg.addButton("Открыть ссылку", QMessageBox.AcceptRole)
+        close_btn = msg.addButton("Закрыть", QMessageBox.RejectRole)
+        msg.exec_()
+
+        if msg.clickedButton() == open_btn:
+            webbrowser.open("https://t.me/bot_gta5blast")
+
+        self.settings.save_group("index", {"link": True})
