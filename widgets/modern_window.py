@@ -11,6 +11,7 @@ from pages.cow_page import CowPage
 from pages.gym_page import GymPage
 from pages.settings import SettingsPage
 from pages.demorgan_page import DemorganPage
+from pages.bp_page import BpPage
 import random
 import math
 
@@ -90,7 +91,7 @@ class UpdateChecker(QtCore.QObject):
         self.manager.finished.connect(self._on_response)
 
     def check(self):
-        url = QtCore.QUrl("https://raw.githubusercontent.com/DornodeXXX/bot-gta/main/version.txt")
+        url = QtCore.QUrl("https://gitflic.ru/project/dornode/bot/blob/raw?file=version.txt")
         request = QtNetwork.QNetworkRequest(url)
         self.manager.get(request)
 
@@ -103,13 +104,13 @@ class UpdateChecker(QtCore.QObject):
         reply.deleteLater()
 
 class ModernWindow(QtWidgets.QMainWindow):
-    CURRENT_VERSION = "3.8"
+    CURRENT_VERSION = "3.10"
 
     def __init__(self):
         super().__init__()
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.Window)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
-        self.resize(720, 600)
+        self.resize(720, 900)
         self.setWindowIcon(QtGui.QIcon("icon.png"))
         self.setObjectName("MainWindow")
         
@@ -233,6 +234,7 @@ class ModernWindow(QtWidgets.QMainWindow):
             ("Качалка", "🏋️", GymPage, True),
             ("Кулинария", "🍜", GotovkaPage, True),
             ("Анти-АФК", "🕹️", AntiAfkPage, True),
+            ("Bonus Point", "🎁", BpPage, True),
             ("Настройки", "⚙️", SettingsPage, True),
         ]
 
@@ -263,5 +265,5 @@ class ModernWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
         )
         if reply == QtWidgets.QMessageBox.Yes:
-            github_url = "https://github.com/DornodeXXX/bot-gta/releases"
+            github_url = "https://gitflic.ru/project/dornode/bot/release"
             webbrowser.open(github_url)
