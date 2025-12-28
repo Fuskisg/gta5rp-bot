@@ -104,7 +104,7 @@ class UpdateChecker(QtCore.QObject):
         reply.deleteLater()
 
 class ModernWindow(QtWidgets.QMainWindow):
-    CURRENT_VERSION = "3.10"
+    CURRENT_VERSION = "3.11"
 
     def __init__(self):
         super().__init__()
@@ -197,7 +197,15 @@ class ModernWindow(QtWidgets.QMainWindow):
         modules = self._get_modules()
         max_columns = 3
 
-        for i, (title, emoji, page_cls, enabled) in enumerate(modules):
+        for i, item in enumerate(modules):
+            if len(item) == 4:
+                title, emoji, page_cls, enabled = item
+                subtitle = "Модуль"
+            else:
+                title, subtitle, emoji, page_cls, enabled = item
+                if not subtitle:
+                    subtitle = "Модуль"
+
             if not enabled:
                 continue
 
@@ -205,7 +213,7 @@ class ModernWindow(QtWidgets.QMainWindow):
 
             is_settings = (title == "Настройки")
 
-            button = ModuleButton(title, emoji, indicator, is_settings_button=is_settings)
+            button = ModuleButton(title, subtitle, emoji, indicator, is_settings_button=is_settings)
             button.clicked.connect(partial(self.on_module_clicked, button, page_cls))
             
             row, col = divmod(i, max_columns)
@@ -234,7 +242,7 @@ class ModernWindow(QtWidgets.QMainWindow):
             ("Качалка", "🏋️", GymPage, True),
             ("Кулинария", "🍜", GotovkaPage, True),
             ("Анти-АФК", "🕹️", AntiAfkPage, True),
-            ("Bonus Point", "🎁", BpPage, True),
+            ("Bonus Point","Функция", "🏆", BpPage, True),
             ("Настройки", "⚙️", SettingsPage, True),
         ]
 
