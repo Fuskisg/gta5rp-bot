@@ -1,6 +1,6 @@
 import json
 import os
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import Qt, QEasingCurve, QPropertyAnimation, pyqtProperty
 from PyQt5.QtGui import QFont
 from widgets.common import SettingsManager
@@ -123,8 +123,6 @@ def animate_bp(label: AnimatedLabel):
     anim.setEasingCurve(QEasingCurve.OutCubic)
     anim.start()
 
-
-
 class BpPage(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -222,9 +220,7 @@ class BpPage(QtWidgets.QWidget):
 
         self.total_label = AnimatedLabel("BP: 0")
         self.total_label.setFont(QFont("Inter", 20, QFont.Bold))
-        self.total_label.setStyleSheet(
-            "background-color: rgba(50,50,65,200); border-radius:14px; padding:10px 18px;"
-        )
+        self.total_label.setStyleSheet("background-color: rgba(50,50,65,200); border-radius:14px; padding:10px 18px;")
         top.addWidget(self.total_label)
 
         top.addStretch()
@@ -336,12 +332,12 @@ class BpPage(QtWidgets.QWidget):
                 self.task_checkboxes[-1][0].setChecked(True)
 
     def add_task_dialog(self):
-        text, ok = QtWidgets.QInputDialog.getText(self,"Новое задание","Введите текст задания:")
-        if not ok or not text.strip():
+        dialog = AddTaskDialog(self)
+        if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return
 
-        bp_text, ok = QtWidgets.QInputDialog.getText(self,"BP","Введите BP (base/vip):\nПример: 2/4")
-        if not ok or "/" not in bp_text:
+        text, bp_text = dialog.get_data()
+        if not text or "/" not in bp_text:
             return
 
         try:
@@ -349,9 +345,10 @@ class BpPage(QtWidgets.QWidget):
         except ValueError:
             return
 
-        self.add_task_checkbox(text.strip(), base, vip)
+        self.add_task_checkbox(text, base, vip)
         self.update_total_bp()
         self.save_state()
+
 
     def delete_task_dialog(self):
         if not self.tasks_data:
@@ -359,11 +356,11 @@ class BpPage(QtWidgets.QWidget):
 
         items = [task["name"] for task in self.tasks_data]
 
-        item, ok = QtWidgets.QInputDialog.getItem(self,"Удалить задание","Выберите задание:",items,0,False)
-        if not ok or not item:
+        dialog = DeleteTaskDialog(items, self)
+        if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return
 
-        index = items.index(item)
+        index = dialog.selected_index()
 
         cb, _, _ = self.task_checkboxes.pop(index)
         self.scroll_layout.removeWidget(cb)
@@ -373,3 +370,59 @@ class BpPage(QtWidgets.QWidget):
 
         self.update_total_bp()
         self.save_state()
+
+class AddTaskDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Новое задание")
+        self.setFixedWidth(300)
+        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        self.task_edit = QtWidgets.QLineEdit()
+        self.task_edit.setPlaceholderText("Текст задания")
+
+        self.bp_edit = QtWidgets.QLineEdit()
+        self.bp_edit.setPlaceholderText("BP (base/vip), например 2/4")
+
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+
+        layout.addWidget(QtWidgets.QLabel("Введите текст задания:"))
+        layout.addWidget(self.task_edit)
+        layout.addWidget(QtWidgets.QLabel("Введите BP:"))
+        layout.addWidget(self.bp_edit)
+        layout.addWidget(buttons)
+
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+    def get_data(self):
+        return self.task_edit.text().strip(), self.bp_edit.text().strip()
+    
+
+class DeleteTaskDialog(QtWidgets.QDialog):
+    def __init__(self, tasks, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Удалить задание")
+        self.setFixedWidth(300)
+        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        self.combo = QtWidgets.QComboBox()
+        self.combo.addItems(tasks)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+
+        layout.addWidget(QtWidgets.QLabel("Выберите задание:"))
+        layout.addWidget(self.combo)
+        layout.addWidget(buttons)
+
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+    def selected_index(self):
+        return self.combo.currentIndex()
