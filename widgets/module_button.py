@@ -61,7 +61,7 @@ class ModuleButton(QtWidgets.QFrame):
         gradient.setColorAt(1.0, QtCore.Qt.transparent)
         painter.fillPath(path, gradient)
 
-    def __init__(self, title: str, emoji: str, right_indicator: StatusPulseDot, is_settings_button=False):
+    def __init__(self, title: str, subtitle: str ,emoji: str, right_indicator: StatusPulseDot, is_settings_button=False):
         super().__init__()
         self._active = False
         self._indicator = right_indicator
@@ -119,14 +119,14 @@ class ModuleButton(QtWidgets.QFrame):
         ttitle = QtWidgets.QLabel(f"{title}")
         ttitle.setStyleSheet("color: %s; font-size: 15px; font-weight: 600;" % COLORS["text"])
 
-        subtitle = QtWidgets.QLabel("Модуль")
-        subtitle.setStyleSheet("color: %s; font-size: 12px;" % COLORS["muted"])
+        subttitle = QtWidgets.QLabel(f"{subtitle}")
+        subttitle.setStyleSheet("color: %s; font-size: 12px;" % COLORS["muted"])
 
         text_col = QtWidgets.QVBoxLayout()
         text_col.setSpacing(2)
         text_col.setContentsMargins(0, 0, 0, 0)
         text_col.addWidget(ttitle)
-        text_col.addWidget(subtitle)
+        text_col.addWidget(subttitle)
 
         text_widget = QtWidgets.QWidget()
         text_widget.setLayout(text_col)
