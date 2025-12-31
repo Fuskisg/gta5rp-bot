@@ -3,3 +3,4 @@ logs.txt
 bp.json
 /widgets/__pycache__
 /pages/__pycache__
+/build_temp/
