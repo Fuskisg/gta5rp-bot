@@ -231,7 +231,6 @@ class ModernWindow(QtWidgets.QMainWindow):
         
         return grid_widget
 
-
     def _get_modules(self):
         return [
             ("Главная", "🏠", IndexPage, True),
