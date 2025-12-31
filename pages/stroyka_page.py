@@ -1,9 +1,12 @@
 from PyQt5 import QtWidgets, QtCore
-from widgets.common import CommonLogger, ScriptController, load_images, CommonUI, SettingsManager
+from widgets.common import CommonLogger, ScriptController, load_images, CommonUI, SettingsManager, AutoHold
 from pynput.keyboard import Controller
 import time
 import threading
 import keyboard
+
+from pynput import keyboard as pynput_keyboard, mouse as pynput_mouse
+from pynput.keyboard import Key, KeyCode, Controller as KeyboardController, Listener as KeyboardListener
 
 class StroykaPage(QtWidgets.QWidget):
     statusChanged = QtCore.pyqtSignal(bool)
@@ -63,7 +66,6 @@ class StroykaPage(QtWidgets.QWidget):
 class StroykaWorker(QtCore.QThread):
     log_signal = QtCore.pyqtSignal(str)
     counter_signal = QtCore.pyqtSignal(int)
-    CONFIDENCE = 0.95
 
     def __init__(self, hotkey: str = "f5"):
         super().__init__()
@@ -71,10 +73,10 @@ class StroykaWorker(QtCore.QThread):
         self.count = 0
         self.current_actions = 0
         self.img_key = load_images("stroyka", mapping={
-            "image1.png": {"en": "e", "ru": "у"},
-            "image2.png": {"en": "y", "ru": "н"},
-            "image3.png": {"en": "f", "ru": "а"},
-            "image4.png": {"en": "h", "ru": "р"},
+            "image1.png": {"code": 0x45},
+            "image2.png": {"code": 0x89},
+            "image3.png": {"code": 0x46},
+            "image4.png": {"code": 0x48},
         })
         self._stop = threading.Event()
         self._shown = {p: False for p in self.img_key}
@@ -82,71 +84,55 @@ class StroykaWorker(QtCore.QThread):
         self.keyboard_controller = Controller()
         self.detection_cache = {}
         self._toggle_requested = False
-        self._move_enabled = False
+        self.auto_move = AutoHold(
+            keys=["shift", "w"],
+            logger=self.log
+        )
         self.hotkey = hotkey or "f5"
 
-        keyboard.add_hotkey(self.hotkey, self._request_toggle_move)
+        keyboard.add_hotkey(self.hotkey, lambda: setattr(self, "_toggle_requested", True))
 
     def log(self, message: str):
         self.log_signal.emit(message)
 
-    def _request_toggle_move(self):
-        self._toggle_requested = True
+    def safe_locate(self, path: str, ttl=0.1):
+        now = time.time()
+        cached = self.detection_cache.get(path)
+        if cached:
+            result, ts = cached
+            if now - ts < ttl:
+                return result
+        result = CommonLogger.safe_locate(path, 0.90, self.log_signal)
 
-    def safe_locate(self, path: str):
-        current_time = time.time()
-        if path in self.detection_cache and current_time - self.detection_cache[path]['time'] < 0.1:
-            return self.detection_cache[path]['result']
-        
-        result = CommonLogger.safe_locate(path, self.CONFIDENCE, self.log_signal)
-        self.detection_cache[path] = {'result': result, 'time': current_time}
+        if result is not None:
+            self.detection_cache[path] = (result, now)
+
         return result
 
     def run(self):
         self.running = True
         self.log("Поиск начат.")
-        rage_window_missing = True
         try:
             while self.running:
-                if not CommonLogger.is_rage_mp_active():
-                    if self._move_enabled:
-                        keyboard.release("shift")
-                        keyboard.release("w")
-                        self._move_enabled = False
-                        self.log("[■] Движение отключено (Shift+W отпущены)")
-                    if rage_window_missing:
-                        self.log("Окно RAGE Multiplayer не активно. Ожидание...")
-                        rage_window_missing = False
-                    self._stop.wait(1)
+                if not CommonLogger.wait_for_rage(log=self.log,auto_move=getattr(self, "auto_move", None)):
                     continue
 
-                if not rage_window_missing:
-                    self.log("Окно RAGE Multiplayer найдено.")
-                    rage_window_missing = True
-
-                if self._toggle_requested:
-                    self._move_enabled = not self._move_enabled
-                    if self._move_enabled:
-                        keyboard.press("shift")
-                        keyboard.press("w")
-                        self.log("[→] Движение включено (Shift+W зажаты)")
-                    else:
-                        keyboard.release("shift")
-                        keyboard.release("w")
-                        self.log("[■] Движение отключено (Shift+W отпущены)")
+                if self._toggle_requested and hasattr(self, "auto_move"):
+                    self.auto_move.toggle()
                     self._toggle_requested = False
-                start_time = time.time()
+
                 for path, keys in self.img_key.items():
                     if self.safe_locate(path):
                         self._handle_visible_image(path, keys)
                         break
-                
-                elapsed = time.time() - start_time
-                if elapsed < 0.02:
-                    self._stop.wait(0.01)
+
+                self._stop.wait(0.01)
+
         except Exception as e:
             self.log(f"[Критическая ошибка]\n{str(e)}")
+
         finally:
+            self.auto_move.force_disable()
             self.running = False
 
     def _handle_visible_image(self, path: str, keys: dict):
@@ -155,19 +141,20 @@ class StroykaWorker(QtCore.QThread):
             self._shown[path] = False
             self.count += 1
             self.counter_signal.emit(self.count)
-            self.log(f"[✓] Найдено → спам '{keys['en']}' и '{keys['ru']}'")
-            
+            self.log(f"[✓] Найдено → спам '{keys['code']}'")
             self.current_actions = self.count
 
         press_count = 0
-        max_presses = 45
-        while self.running and press_count < max_presses:
-            self.keyboard_controller.tap(keys['en'])
-            self.keyboard_controller.tap(keys['ru'])
+        while self.running and press_count < 60:
+            #self.keyboard_controller.tap(keys['en'])
+            #self.keyboard_controller.tap(keys['ru'])
+            controller = KeyboardController()
+            controller.press(pynput_keyboard.KeyCode.from_vk(keys['code']))  
+            time.sleep(0.03)
+            controller.release(pynput_keyboard.KeyCode.from_vk(keys['code']))
             press_count += 1
             if press_count % 5 == 0:
                 self._stop.wait(0.001)
-
 
         if not self.safe_locate(path):
             self._visible[path] = False
