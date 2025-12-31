@@ -147,7 +147,7 @@ class DemorganWorker(QtCore.QThread):
     counter_signal = QtCore.pyqtSignal(int)
     hud_update_signal = QtCore.pyqtSignal(dict)
     
-    CONFIDENCE = 0.95
+    CONFIDENCE = 0.90
 
     def start_timer(self, seconds: int, label: str):
         self.timer_thread = TimerWorker(seconds, label)
