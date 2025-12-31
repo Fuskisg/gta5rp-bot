@@ -81,7 +81,6 @@ class GotovkaWorker(QtCore.QThread):
         self._stop = threading.Event()
         self.running = True
         self.dish_name = dish_name
-        self.confidence = 0.85
         self.cycles_count = 0
 
     def log(self, message: str):
@@ -90,7 +89,7 @@ class GotovkaWorker(QtCore.QThread):
     def _find_and_perform_action(self, image_filename: str, click_type: str) -> bool:
         full_image_path = os.path.join(BASE_ASSETS_PATH, image_filename)
         try:
-            location = pyautogui.locateCenterOnScreen(full_image_path, confidence=self.confidence)
+            location = pyautogui.locateCenterOnScreen(full_image_path, confidence=0.85)
             if location:
                 if click_type == "right":
                     pyautogui.rightClick(location)
@@ -119,21 +118,12 @@ class GotovkaWorker(QtCore.QThread):
 
     def run(self):
         self.log(f"[→] Скрипт готовки запущен для блюда: {self.dish_name}")
-        rage_window_missing = True
         waiting_for_recipe_elements = False
 
         try:
             while self.running:
-                if not CommonLogger.is_rage_mp_active():
-                    if not rage_window_missing:
-                        self.log("[!] Окно RAGE Multiplayer не активно. Ожидание...")
-                        rage_window_missing = True
-                    self._stop.wait(1)
+                if not CommonLogger.wait_for_rage(log=self.log,auto_move=getattr(self, "auto_move", None)):
                     continue
-                else:
-                    if rage_window_missing:
-                        self.log("[✓] Окно RAGE Multiplayer активно.")
-                        rage_window_missing = False
 
                 if self._execute_recipe():
                     self.cycles_count += 1
