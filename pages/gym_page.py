@@ -27,14 +27,15 @@ class GymPage(QtWidgets.QWidget):
 
         settings_group, settings_layout = CommonUI.create_settings_group()
 
-        hotkey_layout, self.hotkey_input = CommonUI.create_hotkey_input(default="f5", description="— вкл/выкл автонажатие E")
-        food_bind, self.food_bind = CommonUI.create_hotkey_input(default="k", description="— клавиша еды")
+        hotkey_layout, self.hotkey_input = CommonUI.create_hotkey_input("f5", description="— вкл/выкл автонажатие E")
+        food, self.food_bind = CommonUI.create_hotkey_input("k",description="— клавиша еды")
+
         food_pause_layout, self.pause_slider, self.get_pause_slider = CommonUI.create_slider_row("Время паузы еды:", 1, 3600, 50, step=1)
 
         self.counter_label = CommonUI.create_counter()
 
         settings_layout.addLayout(hotkey_layout)
-        settings_layout.addLayout(food_bind)
+        settings_layout.addLayout(food)
         settings_layout.addLayout(food_pause_layout)
         settings_layout.addWidget(self.counter_label)
 
@@ -43,7 +44,6 @@ class GymPage(QtWidgets.QWidget):
         layout.addStretch()
 
         self.log_output = CommonUI.add_log_field(layout)
-
 
     def _load_settings(self):
         self.hotkey_input.setText(self.settings.get("gym", "hotkey_port", "f5"))
@@ -117,6 +117,10 @@ class GymWorker(QtCore.QThread):
     def _on_toggle_auto_e(self, enabled: bool):
         self._auto_e_enabled = enabled
         
+    @QtCore.pyqtSlot(bool)
+    def set_auto_e(self, enabled: bool):
+        self._auto_e_enabled = enabled
+
     def rgb_to_hsv_bounds(self, rgb, h_tol, s_tol, v_tol):
         bgr = np.uint8([[[rgb[2], rgb[1], rgb[0]]]])
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[0, 0]
