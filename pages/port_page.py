@@ -2,7 +2,7 @@ from PyQt5 import QtWidgets, QtCore
 import keyboard
 import pyautogui
 from pynput.keyboard import Controller
-from widgets.common import CommonLogger, ScriptController, SettingsManager, auto_detect_region, CommonUI
+from widgets.common import CommonLogger, ScriptController, SettingsManager, auto_detect_region, CommonUI,AutoHold
 import threading
 
 class PortPage(QtWidgets.QWidget):
@@ -68,34 +68,25 @@ class PortWorker(QtCore.QThread):
     TOLERANCE = 20
     STEP_X = 4
     STEP_Y = 10
-    SEARCH_DELAY = 0.01
 
     def __init__(self, hotkey: str = "f5"):
         super().__init__()
         self.running = True
         self._count = 0
-        self._move_enabled = False
         self._toggle_requested = False
         self.hotkey = hotkey or "f5"
         self.monitor = auto_detect_region()
         self._stop = threading.Event()
         self.keyboard_controller = Controller()
+        self.auto_move = AutoHold(
+            keys=["shift", "w"],
+            logger=self.log
+        )
 
-        keyboard.add_hotkey(self.hotkey, self._request_toggle_move)
+        keyboard.add_hotkey(self.hotkey, lambda: setattr(self, "_toggle_requested", True))
 
     def log(self, message: str):
         CommonLogger.log(message, self.log_signal)
-
-    def stop(self):
-        keyboard.unhook_all_hotkeys()
-        if self._move_enabled:
-            keyboard.release("shift")
-            keyboard.release("w")
-            self._move_enabled = False
-            self.log("[■] Движение отключено (Shift+W отпущены)")
-
-    def _request_toggle_move(self):
-        self._toggle_requested = True
 
     @staticmethod
     def _is_color_close(c1: tuple[int, int, int], c2: tuple[int, int, int], tol: int) -> bool:
@@ -103,35 +94,13 @@ class PortWorker(QtCore.QThread):
 
     def run(self):
         self.log("[→] Скрипт порта запущен.")
-        rage_window_missing = True
         try:
             while self.running:
-                if not CommonLogger.is_rage_mp_active():
-                    if self._move_enabled:
-                        keyboard.release("shift")
-                        keyboard.release("w")
-                        self._move_enabled = False
-                        self.log("[■] Движение отключено (Shift+W отпущены)")
-                    if rage_window_missing:
-                        self.log("Окно RAGE Multiplayer не активно. Ожидание...")
-                        rage_window_missing = False
-                    self._stop.wait(1)
+                if not CommonLogger.wait_for_rage(log=self.log,auto_move=getattr(self, "auto_move", None)):
                     continue
 
-                if not rage_window_missing:
-                    self.log("Окно RAGE Multiplayer найдено.")
-                    rage_window_missing = True
-
-                if self._toggle_requested:
-                    self._move_enabled = not self._move_enabled
-                    if self._move_enabled:
-                        keyboard.press("shift")
-                        keyboard.press("w")
-                        self.log("[→] Движение включено (Shift+W зажаты)")
-                    else:
-                        keyboard.release("shift")
-                        keyboard.release("w")
-                        self.log("[■] Движение отключено (Shift+W отпущены)")
+                if self._toggle_requested and hasattr(self, "auto_move"):
+                    self.auto_move.toggle()
                     self._toggle_requested = False
 
                 screenshot = pyautogui.screenshot(region=tuple(self.monitor.values()))
@@ -161,8 +130,8 @@ class PortWorker(QtCore.QThread):
                     self.keyboard_controller.tap('у')
                     self._stop.wait(0.5)
 
-                self._stop.wait(self.SEARCH_DELAY)
+                self._stop.wait(0.01)
 
         except Exception as exc:
             self.log(f"[Ошибка потока] {exc}")
-            self.stop()
+            self.auto_move.force_disable()
