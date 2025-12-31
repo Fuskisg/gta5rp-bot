@@ -15,12 +15,22 @@ import cv2
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QGridLayout, QLabel, QGraphicsDropShadowEffect, QFrame
 )
 from widgets.switch_button import SwitchButton
 
 class CommonLogger:
+    _last_check = 0
+    _last_result = False
+    _was_missing = False
+
+    _REPLACEMENTS = {
+        "а": "a", "е": "e", "о": "o", "р": "p", "с": "c",
+        "у": "y", "х": "x", "м": "m", "т": "t", "н": "h",
+        "в": "b", "к": "k",
+    }
+
     @staticmethod
     def log(message: str,log_target: Optional[Union[pyqtSignal, Callable, QTextEdit]] = None,log_file: str = "logs.txt") -> str:
         timestamp = time.strftime("[%H:%M:%S]")
@@ -53,16 +63,45 @@ class CommonLogger:
             return None
 
     @staticmethod
-    def is_rage_mp_active() -> bool:
+    def _is_rage_active() -> bool:
         active = gw.getActiveWindow()
-        if not active:
+        if not active or not active.title:
             return False
-            
-        replacements = {
-            "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x", "м": "m", "т": "t", "н": "h", "в": "b", "к": "k",
-        }
-        normalized = "".join(replacements.get(ch, ch) for ch in active.title.casefold())
+
+        title = active.title.casefold()
+        normalized = "".join(CommonLogger._REPLACEMENTS.get(c, c) for c in title)
         return "multi" in normalized
+
+    @staticmethod
+    def is_rage_active_cached(interval: float = 0.5) -> bool:
+        now = time.time()
+        if now - CommonLogger._last_check < interval:
+            return CommonLogger._last_result
+
+        CommonLogger._last_check = now
+        CommonLogger._last_result = CommonLogger._is_rage_active()
+        return CommonLogger._last_result
+    
+    @staticmethod
+    def wait_for_rage(log,auto_move: Optional[object] = None,sleep: float = 1.0) -> bool:
+        if CommonLogger.is_rage_active_cached():
+            if CommonLogger._was_missing:
+                log("Окно RAGE Multiplayer найдено.")
+                CommonLogger._was_missing = False
+            return True
+
+        if auto_move is not None:
+            try:
+                auto_move.force_disable()
+            except Exception:
+                pass
+
+        if not CommonLogger._was_missing:
+            log("Окно RAGE Multiplayer не активно. Ожидание...")
+            CommonLogger._was_missing = True
+
+        time.sleep(sleep)
+        return False
         
 class ScriptController:
     @staticmethod
@@ -97,8 +136,8 @@ class ScriptController:
             status_signal.emit(checked)
 
 class HotkeyManager:
-    def __init__(self, hotkey: str, toggle_callback: Callable, log_signal=None):
-        self.hotkey = (hotkey or 'f5').lower().strip()
+    def __init__(self, hotkey: str, toggle_callback, log_signal=None):
+        self.hotkey = hotkey.lower().strip()
         self._hotkey_id = None
         self._enabled = False
         self.log_signal = log_signal
@@ -112,10 +151,12 @@ class HotkeyManager:
             self.toggle_callback(self._enabled)
 
     def register(self):
+        self.unregister()
         try:
             self._hotkey_id = keyboard.add_hotkey(self.hotkey, self.toggle)
+            CommonLogger.log(f"Хоткей '{self.hotkey}' зарегистрирован", self.log_signal)
         except Exception as exc:
-            CommonLogger.log(f"Не удалось зарегистрировать горячую клавишу '{self.hotkey}': {exc}",self.log_signal)
+            CommonLogger.log(f"Ошибка бинда '{self.hotkey}': {exc}", self.log_signal)
 
     def unregister(self):
         if self._hotkey_id is not None:
@@ -124,6 +165,10 @@ class HotkeyManager:
             except Exception:
                 pass
             self._hotkey_id = None
+
+    def set_hotkey(self, hotkey: str):
+        self.hotkey = hotkey.lower().strip()
+        self.register()
 
 class SettingsManager:
     _instance = None
@@ -526,7 +571,7 @@ class CheckWithTooltip(QtWidgets.QWidget):
 
     def isChecked(self) -> bool:
         return self.Check.isChecked()
-    
+
 class CommonUI:
     @staticmethod
     def create_settings_group(title: str = "", spacing: int = 10, margins=(10, 10, 10, 10)):
@@ -635,32 +680,144 @@ class CommonUI:
         return layout, slider, get_value
 
     @staticmethod
-    def create_hotkey_input(default: str = "f5", description: str = "— вкл/выкл автонажатие E"):
+    def create_hotkey_input(default="f5", description="— вкл/выкл"):
         layout = QtWidgets.QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        layout.setSpacing(6)
 
-        input_group = QtWidgets.QHBoxLayout()
-        input_group.setSpacing(5)
-        input_group.setContentsMargins(0, 0, 0, 0)
-
-        hotkey_input = QtWidgets.QLineEdit(default)
-        hotkey_input.setMaxLength(20)
-        hotkey_input.setFixedWidth(50)
+        hotkey_input = HotkeyLineEdit(default)
+        hotkey_input.setFixedWidth(60)
         hotkey_input.setAlignment(QtCore.Qt.AlignCenter)
         hotkey_input.setStyleSheet("""
-            background-color: #222; 
+            background-color: #222;
             color: white;
             font-size: 12px;
+            border-radius: 4px;
         """)
 
-        hotkey_description = QtWidgets.QLabel(description)
-        hotkey_description.setObjectName("hotkey_description")
+        label = QtWidgets.QLabel("Горячая клавиша:")
+        desc = QtWidgets.QLabel(description)
 
-        input_group.addWidget(hotkey_input)
-        input_group.addWidget(hotkey_description)
-
-        layout.addWidget(QtWidgets.QLabel("Горячая клавиша:"))
-        layout.addLayout(input_group)
+        layout.addWidget(label)
+        layout.addWidget(hotkey_input)
+        layout.addWidget(desc)
+        layout.addStretch()
 
         return layout, hotkey_input
+
+class HotkeyLineEdit(QtWidgets.QLineEdit):
+    hotkeyChanged = QtCore.pyqtSignal(str)
+
+    def __init__(self, default="", parent=None):
+        super().__init__(default, parent)
+        self.setReadOnly(True)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+        self._value = default
+        self._waiting = False
+
+        self.RU_TO_EN = {
+            'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']',
+            'ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':"'",
+            'я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.','ё':'`'
+        }
+
+    def focusInEvent(self, event):
+        self._waiting = True
+        self.setText("Нажмите")
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event):
+        if self._waiting:
+            self.setText(self._value)
+        self._waiting = False
+        super().focusOutEvent(event)
+
+    def keyPressEvent(self, event):
+        if not self._waiting:
+            return
+
+        key = event.key()
+        modifiers = event.modifiers()
+
+        if key == QtCore.Qt.Key_Escape:
+            self.clearFocus()
+            return
+
+        if key in (QtCore.Qt.Key_Control,QtCore.Qt.Key_Shift,QtCore.Qt.Key_Alt,QtCore.Qt.Key_Meta):
+            return
+
+        parts = []
+
+        if modifiers & QtCore.Qt.ControlModifier:parts.append("ctrl")
+        if modifiers & QtCore.Qt.AltModifier:parts.append("alt")
+        if modifiers & QtCore.Qt.ShiftModifier:parts.append("shift")
+        if modifiers & QtCore.Qt.MetaModifier:parts.append("win")
+
+        key_name = self._key_to_string(key, event)
+        if not key_name:
+            return
+
+        parts.append(key_name)
+        hotkey = "+".join(parts)
+
+        self._value = hotkey
+        self.setText(hotkey)
+        self._waiting = False
+        self.clearFocus()
+
+        self.hotkeyChanged.emit(hotkey)
+
+    def _key_to_string(self, key, event):
+        text = event.text()
+
+        if text and text.isprintable() and not text.isspace():
+            ch = text.lower()
+            ch = self.RU_TO_EN.get(ch, ch)
+            return ch
+
+        special = {
+            QtCore.Qt.Key_F1: "f1", QtCore.Qt.Key_F2: "f2",
+            QtCore.Qt.Key_F3: "f3", QtCore.Qt.Key_F4: "f4",
+            QtCore.Qt.Key_F5: "f5", QtCore.Qt.Key_F6: "f6",
+            QtCore.Qt.Key_F7: "f7", QtCore.Qt.Key_F8: "f8",
+            QtCore.Qt.Key_F9: "f9", QtCore.Qt.Key_F10: "f10",
+            QtCore.Qt.Key_F11: "f11", QtCore.Qt.Key_F12: "f12",
+            QtCore.Qt.Key_Space: "space",
+            QtCore.Qt.Key_Tab: "tab",
+            QtCore.Qt.Key_Return: "enter",
+        }
+        return special.get(key)
+
+class AutoHold:
+    def __init__(self, keys: list[str], logger: Callable[[str], None] | None = None):
+        self.keys = keys
+        self.enabled = False
+        self.logger = logger
+
+    def toggle(self):
+        self.enabled = not self.enabled
+        if self.enabled:
+            self.press()
+            self._log(f"[→] Движение включено ({'+'.join(self.keys)} зажаты)")
+        else:
+            self.release()
+            self._log(f"[■] Движение отключено ({'+'.join(self.keys)} отпущены)")
+
+    def press(self):
+        for key in self.keys:
+            keyboard.press(key)
+
+    def release(self):
+        for key in self.keys:
+            keyboard.release(key)
+
+    def force_disable(self):
+        if self.enabled:
+            self.release()
+            self.enabled = False
+            self._log(f"[■] Движение отключено (принудительно)")
+
+    def _log(self, text: str):
+        if self.logger:
+            self.logger(text)
