@@ -83,8 +83,6 @@ class DemorganPage(QtWidgets.QWidget):
             "shveika_exe": self.get_tokar_pause(),
         })
 
-
-
     def handle_toggle(self):
         self._save_settings()
         is_starting = self.switch.isChecked()
@@ -146,8 +144,6 @@ class DemorganWorker(QtCore.QThread):
     log_signal = QtCore.pyqtSignal(str)
     counter_signal = QtCore.pyqtSignal(int)
     hud_update_signal = QtCore.pyqtSignal(dict)
-    
-    CONFIDENCE = 0.90
 
     def start_timer(self, seconds: int, label: str):
         self.timer_thread = TimerWorker(seconds, label)
@@ -164,52 +160,85 @@ class DemorganWorker(QtCore.QThread):
         self.shveika_pause = shveika_pause
         self.shveika_exe = shveika_exe
         self.last_known_position = None
-        self.template = self._load_template()
         self.monitor = auto_detect_region(width_ratio, height_ratio, top_ratio)
-        self.monitor2 = auto_detect_region(0.5, 0.8, 0.1)
         self._stop = threading.Event()
-        self.image_paths = load_images("shveika", count=20)
-        self.shveika_templates = self._load_shveika_templates(self.image_paths)
-        self.sentinel_idx = 0
-        self.sentinel_threshold = 0.92
+        self.shveika_templates = load_images("shveika", count=20, as_cv2=True)
+        self.template = load_images("tokar", mapping={"i3.png": "main"}, as_cv2=True)["main"]
         self.is_tokar_found = False
 
-    def _load_template(self):
-        t = cv2.imread("assets/tokar/i3.png", cv2.IMREAD_UNCHANGED)
-        if t is None:
-            raise FileNotFoundError("Не найден шаблон токаря")
-        return t[:, :, :3]
-
-    def _load_shveika_templates(self, paths):
-        templates = []
-        for p in paths:
-            img = cv2.imread(p, cv2.IMREAD_UNCHANGED)
-            if img is None:
-                raise FileNotFoundError(f"Не найден шаблон: {p}")
-            if img.shape[2] == 4:
-                img = img[:, :, :3]
-            templates.append(img)
-        return templates
-
     def log(self, message: str):
-        CommonLogger.log(message, self.log_signal)
+        self.log_signal.emit(message)
 
     def run(self):
         self.log(f"[→] Скрипт Деморган запущен")
-        tokar_thread = threading.Thread(target=self.run_tokar, args=(self.template, self.monitor))
-        script_thread = threading.Thread(target=self.run_shveika) 
-        tokar_thread.start()
-        script_thread.start()
-        tokar_thread.join()
-        script_thread.join()
+        threading.Thread(target=self.run_tokar, daemon=True).start()
+        threading.Thread(target=self.run_shveika, daemon=True).start()
+
+        while self.running:
+            self._stop.wait(0.1)
+
+    def run_shveika(self):
+        last_wait_logged = 0.0
+        sentinel_template = self.shveika_templates[0]
+        try:
+            with mss.mss() as sct:
+                while self.running:
+                    if self.is_tokar_found:
+                        self._stop.wait(0.05)
+                        continue
+
+                    frame = np.array(sct.grab(self.monitor))
+                    image_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+                    sentinel_center, _ = self._locate_one(image_bgr, sentinel_template, 0.92)
+                    if sentinel_center is None:
+                        if time.time() - last_wait_logged > 1.5:
+                            last_wait_logged = time.time()
+                        self._stop.wait(0.01)
+                        continue
+
+                    coords = self._locate_all_20(image_bgr, 0.90)
+
+                    if not all(coords):
+                        if time.time() - last_wait_logged > 1.5:
+                            missing = [i + 1 for i, c in enumerate(coords) if c is None]
+                            self.log(f"[~] Ожидание элементов... отсутствуют: "f"{missing[:6]}{'...' if len(missing) > 6 else ''}")
+                            last_wait_logged = time.time()
+                        self._stop.wait(0.03)
+                        continue
+
+                    self.start_timer(self.shveika_pause, "Швейка")
+                    self._count += 1
+                    self.counter_signal.emit(self._count)
+
+                    self.log("[✓] Все 20 точек найдены. Начинаю клик.")
+                    self.hud_update_signal.emit({
+                        "Действий": self._count,
+                        "Сейчас": "Швейка",
+                    })
+
+                    for i, pos in enumerate(coords):
+                        if not self.running:
+                            break
+                        
+                        pyautogui.click(pos)
+                        if i != 0:
+                            self._stop.wait(self.shveika_exe)
+                            pyautogui.click(pos)
+
+                        self.log(f"[Клик] {i + 1}/20: {pos} ({'1' if i == 0 else '2'} раз)")
+                    self._stop.wait(0.03)
+        except Exception as exc:
+            self.log(f"[Ошибка потока Швейки] {exc}")
+        finally:
+            self.running = False
 
     def _locate_one(self, image_bgr, templ_bgr, threshold):
         res = cv2.matchTemplate(image_bgr, templ_bgr, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
         if max_val >= threshold:
             h, w = templ_bgr.shape[:2]
-            center = (max_loc[0] + w // 2 + self.monitor2["left"],
-                      max_loc[1] + h // 2 + self.monitor2["top"])
+            center = (max_loc[0] + w // 2 + self.monitor["left"],max_loc[1] + h // 2 + self.monitor["top"])
             return center, max_val
         return None, max_val
         
@@ -220,63 +249,42 @@ class DemorganWorker(QtCore.QThread):
             coords.append(c)
         return coords
 
-    def run_shveika(self):
-        last_wait_logged = 0.0
-        sentinel_tem = self.shveika_templates[self.sentinel_idx]
-        try:
-            with mss.mss() as sct:
+    def run_tokar(self):
+        h, w = self.template.shape[:2]
+        last_full_scan = 0.0
+        is_tracking = False
+        with mss.mss() as sct:
+            try:
                 while self.running:
-                    if self.is_tokar_found:
-                        self._stop.wait(0.05)
-                        continue
+                    found = False
+                    if self.last_known_position:
+                        cx, cy = self.last_known_position
+                        region = {
+                            "left": max(cx - 100, self.monitor["left"]),
+                            "top": max(cy - 100 - h // 2, self.monitor["top"]),
+                            "width": min(cx + 100, self.monitor["left"] + self.monitor["width"]) - max(cx - 100, self.monitor["left"]),
+                            "height": min(cy + 100 - h // 2, self.monitor["top"] + self.monitor["height"]) - max(cy - 100 - h // 2, self.monitor["top"]),
+                        }
+                        found = self._search_in_region(sct, region)
 
-                    frame = np.array(sct.grab(self.monitor2))
-                    image_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-                    sentinel_center, sentinel_score = self._locate_one(image_bgr, sentinel_tem, self.sentinel_threshold)
+                    if not found and time.time() - last_full_scan > 0.3:
+                        found = self._search_in_region(sct, self.monitor)
+                        last_full_scan = time.time()
 
-                    if sentinel_center is None:
-                        now = time.time()
-                        if now - last_wait_logged > 1.5:
-                            last_wait_logged = now
-                        self._stop.wait(0.01)
-                        continue
-
-                    coords = self._locate_all_20(image_bgr, self.CONFIDENCE)
-
-                    if all(coords):
-                        self.start_timer(self.shveika_pause, "Швейка")
-                        self._count += 1
-                        self.counter_signal.emit(self._count)
-                        self.log(f"[✓] Все 20 точек найдены. Начинаю клик.")
-                        self.current_actions = self._count
-                        self.hud_update_signal.emit({
-                            "Действий": self.current_actions,
-                            "Сейчас": "Швейка",
-                        })
-                        for i, pos in enumerate(coords):
-                            if not self.running:
-                                break
-                            if i == 0:
-                                pyautogui.click(pos)
-                                self.log(f"[Клик] {i+1}/20: {pos} (1 раз)")
-                            else:
-                                pyautogui.click(pos)
-                                self._stop.wait(self.shveika_exe)
-                                pyautogui.click(pos)
-                                self.log(f"[Клик] {i+1}/20: {pos} (2 раза)")
-                        self._stop.wait(0.03)
+                    if found:
+                        if not is_tracking:
+                            self.start_timer(self.tokar_pause, "Токарь")
+                            is_tracking = True
                     else:
-                        now = time.time()
-                        if now - last_wait_logged > 1.5:
-                            missing = [i+1 for i, c in enumerate(coords) if c is None]
-                            self.log(f"[~] Ожидание элементов... отсутствуют: {missing[:6]}{'...' if len(missing) > 6 else ''}")
-                            last_wait_logged = now
-                        self._stop.wait(0.03)
-        except Exception as exc:
-            self.log(f"[Ошибка потока Швейки] {str(exc)}")
-        finally:
-            self.running = False
+                        if is_tracking:
+                            is_tracking = False
+                            self.last_known_position = None
+                        self._stop.wait(0.02)
 
+            except Exception as exc:
+                self.log(f"[Ошибка потока токаря] {exc}")
+            finally:
+                self.running = False
 
     def _search_in_region(self, sct, region):
         h, w = self.template.shape[:2]
@@ -286,7 +294,7 @@ class DemorganWorker(QtCore.QThread):
         result = cv2.matchTemplate(screenshot_bgr, self.template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
-        if max_val > 0.9:
+        if max_val > 0.88:
             found_x = region["left"] + max_loc[0] + w // 2
             found_y_bottom = region["top"] + max_loc[1] + h
             self.last_known_position = (found_x, found_y_bottom)
@@ -298,45 +306,3 @@ class DemorganWorker(QtCore.QThread):
             return True
 
         return False
-
-    def run_tokar(self, template, monitor):
-        h, w = template.shape[:2]
-        self.template = template
-        self.monitor = monitor
-        self.last_known_position = None
-        self.is_tracking = False
-
-        with mss.mss() as sct:
-            try:
-                while self.running:
-                    found = False
-
-                    if self.last_known_position:
-                        cx, cy_bottom = self.last_known_position
-                        small_monitor = {
-                            "left": max(cx - 100, self.monitor["left"]),
-                            "top": max(cy_bottom - 100 - h // 2, self.monitor["top"]),
-                            "width": min(cx + 100, self.monitor["left"] + self.monitor["width"]) - max(cx - 100, self.monitor["left"]),
-                            "height": min(cy_bottom + 100 - h // 2, self.monitor["top"] + self.monitor["height"]) - max(cy_bottom - 100 - h // 2, self.monitor["top"]),
-                        }
-                        found = self._search_in_region(sct, small_monitor)
-
-                    if not found:
-                        found = self._search_in_region(sct, self.monitor)
-
-                    if found and not self.is_tracking:
-                        print("Элемент найден. Работа начата!")
-                        self.start_timer(self.tokar_pause, "Токарь")
-                        self.is_tracking = True
-
-                    if not found:
-                        self.last_known_position = None
-                        if self.is_tracking:
-                            print("Элемент потерян. Отслеживание остановлено.")
-                            self.is_tracking = False
-                        self._stop.wait(0.05)
-                            
-            except Exception as exc:
-                self.log(f"[Ошибка потока токаря] {str(exc)}")
-            finally:
-                self.running = False
