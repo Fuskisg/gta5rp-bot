@@ -49,8 +49,6 @@ class CommonLogger:
                 log_target.append(full_message)
             elif callable(log_target):
                 log_target(full_message)
-        
-        return full_message
 
     @staticmethod
     def safe_locate(path: str, confidence: float = 0.95,log_signal: Optional[Union[pyqtSignal, Callable]] = None) -> Any:
@@ -134,41 +132,6 @@ class ScriptController:
 
         if status_signal:
             status_signal.emit(checked)
-
-class HotkeyManager:
-    def __init__(self, hotkey: str, toggle_callback, log_signal=None):
-        self.hotkey = hotkey.lower().strip()
-        self._hotkey_id = None
-        self._enabled = False
-        self.log_signal = log_signal
-        self.toggle_callback = toggle_callback
-
-    def toggle(self):
-        self._enabled = not self._enabled
-        state = "включено" if self._enabled else "выключено"
-        CommonLogger.log(f"Хоткей: {state}", self.log_signal)
-        if self.toggle_callback:
-            self.toggle_callback(self._enabled)
-
-    def register(self):
-        self.unregister()
-        try:
-            self._hotkey_id = keyboard.add_hotkey(self.hotkey, self.toggle)
-            CommonLogger.log(f"Хоткей '{self.hotkey}' зарегистрирован", self.log_signal)
-        except Exception as exc:
-            CommonLogger.log(f"Ошибка бинда '{self.hotkey}': {exc}", self.log_signal)
-
-    def unregister(self):
-        if self._hotkey_id is not None:
-            try:
-                keyboard.remove_hotkey(self._hotkey_id)
-            except Exception:
-                pass
-            self._hotkey_id = None
-
-    def set_hotkey(self, hotkey: str):
-        self.hotkey = hotkey.lower().strip()
-        self.register()
 
 class SettingsManager:
     _instance = None
@@ -704,6 +667,41 @@ class CommonUI:
         layout.addStretch()
 
         return layout, hotkey_input
+
+class HotkeyManager:
+    def __init__(self, hotkey: str, toggle_callback, log_signal=None):
+        self.hotkey = hotkey.lower().strip()
+        self._hotkey_id = None
+        self._enabled = False
+        self.log_signal = log_signal
+        self.toggle_callback = toggle_callback
+
+    def toggle(self):
+        self._enabled = not self._enabled
+        state = "включено" if self._enabled else "выключено"
+        CommonLogger.log(f"Хоткей: {state}", self.log_signal)
+        if self.toggle_callback:
+            self.toggle_callback(self._enabled)
+
+    def register(self):
+        self.unregister()
+        try:
+            self._hotkey_id = keyboard.add_hotkey(self.hotkey, self.toggle)
+            CommonLogger.log(f"Хоткей '{self.hotkey}' зарегистрирован", self.log_signal)
+        except Exception as exc:
+            CommonLogger.log(f"Ошибка бинда '{self.hotkey}': {exc}", self.log_signal)
+
+    def unregister(self):
+        if self._hotkey_id is not None:
+            try:
+                keyboard.remove_hotkey(self._hotkey_id)
+            except Exception:
+                pass
+            self._hotkey_id = None
+
+    def set_hotkey(self, hotkey: str):
+        self.hotkey = hotkey.lower().strip()
+        self.register()
 
 class HotkeyLineEdit(QtWidgets.QLineEdit):
     hotkeyChanged = QtCore.pyqtSignal(str)
