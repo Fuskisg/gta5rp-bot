@@ -2,7 +2,7 @@ from PyQt5 import QtWidgets, QtCore
 import keyboard
 import pyautogui
 from pynput.keyboard import Controller
-from widgets.common import CommonLogger, ScriptController, SettingsManager, auto_detect_region, CommonUI,AutoHold
+from widgets.common import CommonLogger, ScriptController, SettingsManager, auto_detect_region, CommonUI, AutoHold, Log, press
 import threading
 
 class PortPage(QtWidgets.QWidget):
@@ -71,22 +71,19 @@ class PortWorker(QtCore.QThread):
 
     def __init__(self, hotkey: str = "f5"):
         super().__init__()
+        self.log = Log(self.log_signal)
         self.running = True
         self._count = 0
         self._toggle_requested = False
         self.hotkey = hotkey or "f5"
         self.monitor = auto_detect_region()
         self._stop = threading.Event()
-        self.keyboard_controller = Controller()
         self.auto_move = AutoHold(
             keys=["shift", "w"],
             logger=self.log
         )
 
         keyboard.add_hotkey(self.hotkey, lambda: setattr(self, "_toggle_requested", True))
-
-    def log(self, message: str):
-        CommonLogger.log(message, self.log_signal)
 
     @staticmethod
     def _is_color_close(c1: tuple[int, int, int], c2: tuple[int, int, int], tol: int) -> bool:
@@ -126,8 +123,7 @@ class PortWorker(QtCore.QThread):
                     self.log(f"[✓] Найдена мини-игра — нажимаем E (#{self._count})")
                     self.counter_signal.emit(self._count)
                     self.current_actions = self._count
-                    self.keyboard_controller.tap('e')
-                    self.keyboard_controller.tap('у')
+                    press('e')
                     self._stop.wait(0.5)
 
                 self._stop.wait(0.01)
