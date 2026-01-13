@@ -41,7 +41,6 @@ class GlassScrollBar(QtWidgets.QScrollBar):
             }
         """)
 
-
 DATA_FILE = "bp.json"
 
 DEFAULT_TASKS = [
@@ -129,6 +128,7 @@ class BpPage(QtWidgets.QWidget):
         self.settings = SettingsManager()
 
         self.vip_enabled = False
+        self.server_x2 = False
         self.total_bp = 0
         self.task_checkboxes = []
         self.tasks_data = []
@@ -225,8 +225,14 @@ class BpPage(QtWidgets.QWidget):
 
         top.addStretch()
 
+        self.x2_checkbox = QtWidgets.QCheckBox("x2 Сервер")
+        self.x2_checkbox.stateChanged.connect(self.toggle_x2)
+        self.x2_checkbox.setStyleSheet("font-size: 15px;")
+        top.addWidget(self.x2_checkbox)
+
         self.vip_checkbox = QtWidgets.QCheckBox("Gold / Platinum VIP")
         self.vip_checkbox.stateChanged.connect(self.toggle_vip)
+        self.vip_checkbox.setStyleSheet("font-size: 15px;")
         top.addWidget(self.vip_checkbox)
 
         layout.addLayout(top)
@@ -283,11 +289,19 @@ class BpPage(QtWidgets.QWidget):
         self.vip_enabled = self.vip_checkbox.isChecked()
         self.update_total_bp()
 
+    def toggle_x2(self):
+        self.server_x2 = self.x2_checkbox.isChecked()
+        self.update_total_bp()
+
     def update_total_bp(self):
         total = 0
         for cb, base, vip in self.task_checkboxes:
             if cb.isChecked():
-                total += vip if self.vip_enabled else base
+                amount = vip if self.vip_enabled else base
+                if self.server_x2:
+                    amount *= 2
+                    
+                total += amount
 
         self.total_bp = total
         self.total_label.setText(f"BP: {total}")
@@ -301,6 +315,7 @@ class BpPage(QtWidgets.QWidget):
     def save_state(self):
         state = {
             "vip": self.vip_enabled,
+            "server_x2": self.server_x2,
             "tasks": [
                 {
                     "name": task["name"],
@@ -326,6 +341,9 @@ class BpPage(QtWidgets.QWidget):
         self.vip_enabled = state.get("vip", False)
         self.vip_checkbox.setChecked(self.vip_enabled)
 
+        self.server_x2 = state.get("server_x2", False)
+        self.x2_checkbox.setChecked(self.server_x2)
+
         for task in state.get("tasks", []):
             self.add_task_checkbox(task["name"], task["base"], task["vip"])
             if task.get("checked"):
@@ -348,7 +366,6 @@ class BpPage(QtWidgets.QWidget):
         self.add_task_checkbox(text, base, vip)
         self.update_total_bp()
         self.save_state()
-
 
     def delete_task_dialog(self):
         if not self.tasks_data:
@@ -400,7 +417,6 @@ class AddTaskDialog(QtWidgets.QDialog):
     def get_data(self):
         return self.task_edit.text().strip(), self.bp_edit.text().strip()
     
-
 class DeleteTaskDialog(QtWidgets.QDialog):
     def __init__(self, tasks, parent=None):
         super().__init__(parent)
