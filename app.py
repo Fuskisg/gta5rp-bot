@@ -2,46 +2,35 @@ import sys
 from PyQt5 import QtWidgets, QtCore, QtGui
 from widgets import COLORS, ModernWindow
 
-def main():
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-    app = QtWidgets.QApplication(sys.argv)
-    app.setApplicationName("BOT [GTA5RP]")
-    app.setStyle("Fusion")
+class FocusRemover(QtCore.QObject):
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.KeyPress:
+            if event.key() == QtCore.Qt.Key_Tab:
+                return True
+            return False
 
-    font = app.font()
-    font.setFamily("Helvetica")
-    font.setPointSize(10)
-    app.setFont(font)
+        if event.type() not in (QtCore.QEvent.MouseButtonPress,QtCore.QEvent.MouseButtonRelease):
+            return False
 
-    class FocusRemover(QtCore.QObject):
-        def eventFilter(self, obj, event):
-            if event.type() in (QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseButtonRelease):
-                try:
-                    pos = event.globalPos()
-                except Exception:
-                    pos = None
-                clicked = QtWidgets.QApplication.widgetAt(pos) if pos is not None else None
-                focused = QtWidgets.QApplication.focusWidget()
-                if isinstance(focused, QtWidgets.QLineEdit):
-                    if clicked is None:
-                        focused.clearFocus()
-                    else:
-                        w = clicked
-                        inside = False
-                        while w is not None:
-                            if w is focused:
-                                inside = True
-                                break
-                            w = w.parent()
-                        if not inside:
-                            focused.clearFocus()
-            return super().eventFilter(obj, event)
-            
-    _focus_remover = FocusRemover()
-    app.installEventFilter(_focus_remover)
-    app._focus_remover = _focus_remover
+        focused = QtWidgets.QApplication.focusWidget()
+        if not isinstance(focused, QtWidgets.QLineEdit):
+            return False
 
+        try:
+            clicked = QtWidgets.QApplication.widgetAt(event.globalPos())
+        except Exception:
+            clicked = None
+
+        w = clicked
+        while w is not None:
+            if w is focused:
+                return False
+            w = w.parent()
+
+        focused.clearFocus()
+        return False
+
+def setup_palette(app: QtWidgets.QApplication):
     palette = QtGui.QPalette()
     palette.setColor(QtGui.QPalette.Window, QtGui.QColor(COLORS["bg"]))
     palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(COLORS["text"]))
@@ -55,8 +44,27 @@ def main():
     palette.setColor(QtGui.QPalette.BrightText, QtCore.Qt.red)
     app.setPalette(palette)
 
-    w = ModernWindow()
-    w.show()
+def main():
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+
+    app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName("BOT [GTA5RP]")
+    app.setStyle("Fusion")
+
+    setup_palette(app)
+    
+    font = app.font()
+    font.setFamily("Helvetica")
+    font.setPointSize(10)
+    app.setFont(font)
+
+    focus_remover = FocusRemover()
+    app.installEventFilter(focus_remover)
+    app._focus_remover = focus_remover
+
+    window = ModernWindow()
+    window.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
