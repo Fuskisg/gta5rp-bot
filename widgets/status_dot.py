@@ -4,84 +4,71 @@ from .theme import COLORS
 class StatusPulseDot(QtWidgets.QWidget):
     def __init__(self, color=QtGui.QColor(COLORS["accent"])):
         super().__init__()
-        self._halo_radius = 18.0
-        self._halo_opacity = 0.35
+        self._radius = 18.0
+        self._opacity = 0.35
         self._active = False
-        self._color = color
+        self.color = QtGui.QColor(color)
         self.setFixedSize(35, 35)
-        self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.anim_radius = self._anim(b"haloRadius", 12.0, 22.0)
+        self.anim_opacity = self._anim(b"haloOpacity", 0.50, 0.05)
 
-        self.anim_radius = QtCore.QPropertyAnimation(self, b"haloRadius", self)
-        self.anim_radius.setDuration(1200)
-        self.anim_radius.setStartValue(12.0)
-        self.anim_radius.setEndValue(22.0)
-        self.anim_radius.setEasingCurve(QtCore.QEasingCurve.InOutSine)
-        self.anim_radius.setLoopCount(-1)
+    def _anim(self, prop, start, end):
+        a = QtCore.QPropertyAnimation(self, prop)
+        a.setDuration(1200)
+        a.setStartValue(start)
+        a.setEndValue(end)
+        a.setEasingCurve(QtCore.QEasingCurve.InOutSine)
+        a.setLoopCount(-1)
+        return a
 
-        self.anim_opacity = QtCore.QPropertyAnimation(self, b"haloOpacity", self)
-        self.anim_opacity.setDuration(1200)
-        self.anim_opacity.setStartValue(0.50)
-        self.anim_opacity.setEndValue(0.05)
-        self.anim_opacity.setEasingCurve(QtCore.QEasingCurve.InOutSine)
-        self.anim_opacity.setLoopCount(-1)
+    @QtCore.pyqtProperty(float)
+    def haloRadius(self):
+        return self._radius
 
-    def sizeHint(self):
-        return QtCore.QSize(22, 22)
-
-    def getHaloRadius(self):
-        return self._halo_radius
-
-    def setHaloRadius(self, value):
-        self._halo_radius = float(value)
+    @haloRadius.setter
+    def haloRadius(self, v):
+        self._radius = v
         self.update()
 
-    haloRadius = QtCore.pyqtProperty(float, fget=getHaloRadius, fset=setHaloRadius)
+    @QtCore.pyqtProperty(float)
+    def haloOpacity(self):
+        return self._opacity
 
-    def getHaloOpacity(self):
-        return self._halo_opacity
-
-    def setHaloOpacity(self, value):
-        self._halo_opacity = float(value)
+    @haloOpacity.setter
+    def haloOpacity(self, v):
+        self._opacity = v
         self.update()
-
-    haloOpacity = QtCore.pyqtProperty(float, fget=getHaloOpacity, fset=setHaloOpacity)
 
     def start(self):
-        if not self._active:
-            self._active = True
-            self.anim_radius.start()
-            self.anim_opacity.start()
-            self.show()
-            self.update()
+        if self._active:
+            return
+        self._active = True
+        self.anim_radius.start()
+        self.anim_opacity.start()
+        self.show()
 
     def stop(self):
-        if self._active:
-            self._active = False
-            self.anim_radius.stop()
-            self.anim_opacity.stop()
-            self.hide()
-            self.update()
+        self._active = False
+        self.anim_radius.stop()
+        self.anim_opacity.stop()
+        self.hide()
 
-    def paintEvent(self, e: QtGui.QPaintEvent):
-        p = QtGui.QPainter(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
-
-        rect = self.rect()
-        center = rect.center()
+    def paintEvent(self, _):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        center = self.rect().center()
 
         if self._active:
-            gradient = QtGui.QRadialGradient(center, self._halo_radius)
-            c = QtGui.QColor(self._color)
-            c.setAlphaF(self._halo_opacity)
-            transparent = QtGui.QColor(self._color)
-            transparent.setAlpha(0)
-            gradient.setColorAt(0.0, c)
-            gradient.setColorAt(1.0, transparent)
-            p.setPen(QtCore.Qt.NoPen)
-            p.setBrush(QtGui.QBrush(gradient))
-            p.drawEllipse(center, self._halo_radius, self._halo_radius)
+            halo_gradient = QtGui.QRadialGradient(center, self._radius)
+            halo_color = QtGui.QColor(self.color)
+            halo_color.setAlphaF(self._opacity)
+            halo_gradient.setColorAt(0.0, halo_color)
+            halo_gradient.setColorAt(1.0, QtCore.Qt.transparent)
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.setBrush(halo_gradient)
+            painter.drawEllipse(center, self._radius, self._radius)
 
-        p.setBrush(QtGui.QColor(self._color))
-        p.setPen(QtCore.Qt.NoPen)
-        p.drawEllipse(center, 5, 5)
-        p.end()
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(self.color)
+        painter.drawEllipse(center, 5, 5)
