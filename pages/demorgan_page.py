@@ -3,7 +3,7 @@ import pyautogui
 import cv2
 import numpy as np
 import mss
-from widgets.common import CommonLogger, ScriptController, auto_detect_region, load_images, SettingsManager, OverlayWindow, CheckWithTooltip,CommonUI
+from widgets.common import CommonLogger, ScriptController, auto_detect_region, load_images, SettingsManager, OverlayWindow, CheckWithTooltip,CommonUI,Log
 import threading
 import time, threading
 from PyQt5 import QtWidgets, QtCore
@@ -153,6 +153,7 @@ class DemorganWorker(QtCore.QThread):
 
     def __init__(self, width_ratio=0.5, height_ratio=0.6, top_ratio=0.25, tokar_pause: float = 0.0, shveika_pause: float = 0.0, shveika_exe: float = 0.0):
         super().__init__()
+        self.log = Log(self.log_signal)
         self.running = True
         self.timer_thread = None
         self._count = 0
@@ -165,9 +166,6 @@ class DemorganWorker(QtCore.QThread):
         self.shveika_templates = load_images("shveika", count=20, as_cv2=True)
         self.template = load_images("tokar", mapping={"i3.png": "main"}, as_cv2=True)["main"]
         self.is_tokar_found = False
-
-    def log(self, message: str):
-        self.log_signal.emit(message)
 
     def run(self):
         self.log(f"[→] Скрипт Деморган запущен")
