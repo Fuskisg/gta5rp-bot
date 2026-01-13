@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from pynput.keyboard import Key, Controller
 import mss
-from widgets.common import CommonLogger, ScriptController, HotkeyManager, SettingsManager, auto_detect_region,CommonUI
+from widgets.common import CommonLogger, ScriptController, HotkeyManager, SettingsManager, auto_detect_region, CommonUI, Log, press
 
 class GymPage(QtWidgets.QWidget):
     statusChanged = QtCore.pyqtSignal(bool)
@@ -75,34 +75,19 @@ class GymWorker(QtCore.QThread):
     counter_signal = QtCore.pyqtSignal(int)
 
     TARGET_RGB = (120, 255, 166)
-
     H_TOL = 0   #оттенок 10
     S_TOL = 0   #насыщенность 15
     V_TOL = 0   #яркость
-
     MIN_AREA = 50
 
-
-    eng_to_rus = {
-        'q': 'й', 'w': 'ц', 'e': 'у', 'r': 'к', 't': 'е', 'y': 'н', 'u': 'г',
-        'i': 'ш', 'o': 'щ', 'p': 'з', '[': 'х', ']': 'ъ',
-        'a': 'ф', 's': 'ы', 'd': 'в', 'f': 'а', 'g': 'п', 'h': 'р', 'j': 'о',
-        'k': 'л', 'l': 'д', ';': 'ж', "'": 'э',
-        'z': 'я', 'x': 'ч', 'c': 'с', 'v': 'м', 'b': 'и', 'n': 'т', 'm': 'ь',
-        ',': 'б', '.': 'ю', '/': '.'
-    }
-
-    def __init__(self, monitor: dict = None, hotkey: str = 'f5', pause_delay: float = 0.0, key_food: str = 'k'):
+    def __init__(self, hotkey: str = 'f5', pause_delay: float = 0.0, key_food: str = 'k'):
         super().__init__()
+        self.log = Log(self.log_signal)
         self.running = True
         self._count = 0
         self.pause_delay = pause_delay
         self.key_food = key_food
-        lower = self.key_food.lower()
-        self.rus_key = self.eng_to_rus.get(lower, self.key_food)
-        if self.key_food.isupper():
-            self.rus_key = self.rus_key.upper()
-        self.monitor = monitor or auto_detect_region(reference_height=1440, reference_top=560)
+        self.monitor = auto_detect_region(reference_height=1440, reference_top=560)
         self._hotkey = (hotkey or 'f5').lower().strip()
         self._hotkey_id = None
         self._auto_e_enabled = False
@@ -115,10 +100,6 @@ class GymWorker(QtCore.QThread):
         )
      
     def _on_toggle_auto_e(self, enabled: bool):
-        self._auto_e_enabled = enabled
-        
-    @QtCore.pyqtSlot(bool)
-    def set_auto_e(self, enabled: bool):
         self._auto_e_enabled = enabled
 
     def rgb_to_hsv_bounds(self, rgb, h_tol, s_tol, v_tol):
@@ -151,9 +132,6 @@ class GymWorker(QtCore.QThread):
             return True
         return False
 
-    def log(self, message: str):
-        CommonLogger.log(message, self.log_signal)
-
     def run(self):
         lower, upper = self.rgb_to_hsv_bounds(self.TARGET_RGB, self.H_TOL, self.S_TOL, self.V_TOL)
         was_found = False
@@ -166,30 +144,27 @@ class GymWorker(QtCore.QThread):
                 while self.running:
                     img = np.array(sct.grab(self.monitor))
                     frame_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-
                     found = self.found_circle_by_color(frame_bgr, lower, upper)
 
                     if found and not was_found:
-                        self.log(f"Круг найден, нажимаем пробел")
+                        self.log("Круг найден, нажимаем пробел")
                         self.keyboard_controller.tap(Key.space)
+                        self._last_e_time = time.time()
 
                     if not found:
                         now = time.time()
                         if now - getattr(self, "_last_k_time", 0) >= self.pause_delay:
-                            self.keyboard_controller.tap(self.key_food)
-                            self.keyboard_controller.tap(self.rus_key)
+                            press(self.key_food)
                             self._last_k_time = now
                             self.log(f"Нажата {self.key_food} (еда)")
+
                         if self._auto_e_enabled:
-                            now = time.time()
-                            if now - self._last_e_time >= 5.0:
-                                self.keyboard_controller.tap('e')
-                                self.keyboard_controller.tap('у')
+                            if now - getattr(self, "_last_e_time", 0) >= 5.0:
+                                press('e')
                                 self._last_e_time = now
                                 self.log("Нажата 'E' (авто)")
 
                     was_found = found
-
         except Exception as exc:
             self.log(f"[Ошибка потока] {exc}")
         finally:
