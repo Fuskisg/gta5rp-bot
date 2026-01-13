@@ -6,7 +6,7 @@ import pyautogui
 import keyboard
 from typing import Optional, Tuple, Callable
 import time
-from widgets.common import CommonLogger, ScriptController, SettingsManager, CheckWithTooltip, CommonUI
+from widgets.common import CommonLogger, ScriptController, SettingsManager, CheckWithTooltip, CommonUI,Log
 import vgamepad as vg
 
 BASE_ASSETS_PATH = "assets/spin/"
@@ -89,6 +89,7 @@ class AntiAfkWorker(QtCore.QThread):
 
     def __init__(self, min_delay=1.0, max_delay=3.5, min_pause=0.5, max_pause=2.0, checkwheel=False):
         super().__init__()
+        self.log = Log(self.log_signal)
         self.running = True
         self.min_delay = min_delay
         self.max_delay = max_delay
@@ -120,9 +121,6 @@ class AntiAfkWorker(QtCore.QThread):
             self.roulette_thread.trigger.connect(self.perform_roulette_spin)
         else:
             self.roulette_thread = None
-
-    def log(self, message: str):
-        CommonLogger.log(message, self.log_signal)
 
     def close(self):
         if self.roulette_thread:
