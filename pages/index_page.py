@@ -1,67 +1,64 @@
 import sys
+import webbrowser
 from PyQt5 import QtWidgets, QtCore, QtGui, QtNetwork
 from PyQt5.QtCore import QUrl, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve
-import webbrowser
-from widgets.common import SettingsManager
 from PyQt5.QtWidgets import QMessageBox
-GLOBAL_NETWORK_MANAGER = QtNetwork.QNetworkAccessManager()
+from widgets.common import SettingsManager
+
+def load_icon(path, size=18):
+    return QtGui.QPixmap(path).scaled(size, size,QtCore.Qt.KeepAspectRatio,QtCore.Qt.SmoothTransformation)
+
+def make_link_button(text, color, hover, icon=None, icon_size=18):
+    btn = QtWidgets.QPushButton(text)
+    btn.setCursor(QtCore.Qt.PointingHandCursor)
+
+    if icon:
+        if isinstance(icon, QtGui.QPixmap):
+            btn.setIcon(QtGui.QIcon(icon))
+        else:
+            btn.setIcon(QtGui.QIcon(icon))
+        btn.setIconSize(QtCore.QSize(icon_size, icon_size))
+
+    btn.setStyleSheet(f"""
+        QPushButton {{
+            background: transparent;
+            border: none;
+            color: {color};
+            font-size: 14px;
+            text-decoration: underline;
+            padding: 0;
+            padding-left: 2px;
+            text-align: left;
+        }}
+        QPushButton:hover {{
+            color: {hover};
+        }}
+        QPushButton::icon {{
+            margin-right: 6px;
+        }}
+    """)
+
+    return btn
 
 class HelpOverlay(QtWidgets.QWidget):
     def __init__(self, parent):
         super().__init__(parent)
-        self.parent_window = parent
         self.resize(parent.size())
-        self.set_rounded_mask()
-        self.telegram_icon_pixmap = QtGui.QPixmap("assets/tg.png").scaled(18, 18,QtCore.Qt.KeepAspectRatio,QtCore.Qt.SmoothTransformation)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
 
-        pixmap = QtGui.QPixmap(parent.size())
-        pixmap.fill(QtCore.Qt.transparent)
-        parent.render(pixmap)
-        small = pixmap.scaled(self.width()//4, self.height()//4, QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
-        self.final_bg = self.apply_blur(small, 8).scaled(self.size(), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
-
+        self.telegram_icon = load_icon("assets/tg.png")
         self.build_ui()
-        self.run_card_animation()
+        self.run_animation()
 
-    def set_rounded_mask(self, radius=18, offset=15):
-        path = QtGui.QPainterPath()
-        inner_rect = QtCore.QRectF(self.rect()).marginsRemoved(QtCore.QMarginsF(offset, offset, offset, offset))
-        
-        path.addRoundedRect(inner_rect, radius, radius)
-        self.setMask(QtGui.QRegion(path.toFillPolygon().toPolygon()))
-
-    def apply_blur(self, pixmap, radius):
-        if pixmap.isNull():
-            return pixmap
-        blur = QtWidgets.QGraphicsBlurEffect()
-        blur.setBlurRadius(radius)
-        tmp_label = QtWidgets.QLabel()
-        tmp_label.setPixmap(pixmap)
-        tmp_label.setGraphicsEffect(blur)
-        tmp_label.setAttribute(QtCore.Qt.WA_DontShowOnScreen)
-        tmp_label.resize(pixmap.size())
-        
-        res = QtGui.QPixmap(pixmap.size())
-        res.fill(QtCore.Qt.transparent)
-        painter = QtGui.QPainter(res)
-        if painter.isActive():
-            tmp_label.render(painter)
-            painter.end()
-        
-        return res
-    
     def paintEvent(self, event):
-        if not hasattr(self, 'final_bg') or self.final_bg.isNull():
-            return
-            
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        content_rect = QtCore.QRectF(self.rect()).adjusted(15, 15, -15, -15)
         path = QtGui.QPainterPath()
-        path.addRoundedRect(QtCore.QRectF(self.rect()), 18, 18)
+        path.addRoundedRect(content_rect, 18, 18)
         painter.setClipPath(path)
-        painter.drawPixmap(self.rect(), self.final_bg)
-        painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0, 180))
-        painter.end()
+        painter.fillRect(content_rect, QtGui.QColor(0, 0, 0, 180))
 
     def build_ui(self):
         self.card = QtWidgets.QFrame(self)
@@ -72,7 +69,10 @@ class HelpOverlay(QtWidgets.QWidget):
                 border: 1px solid #1c1c1c;
                 border-radius: 20px;
             }
-            QLabel { color: white; background: transparent; font-family: 'Segoe UI', sans-serif; }
+            QLabel {
+                color: white;
+                font-family: 'Segoe UI';
+            }
         """)
 
         layout = QtWidgets.QVBoxLayout(self.card)
@@ -80,151 +80,161 @@ class HelpOverlay(QtWidgets.QWidget):
 
         header = QtWidgets.QHBoxLayout()
         title = QtWidgets.QLabel("Поддержка")
-        title.setStyleSheet("font-weight: bold; font-size: 18px; color: #00ffcc; border:none;")
-        
+        title.setStyleSheet("font-size:18px;font-weight:bold;color:#00ffcc;border:none")
+
         close_btn = QtWidgets.QPushButton("✕")
         close_btn.setFixedSize(28, 28)
         close_btn.setCursor(QtCore.Qt.PointingHandCursor)
         close_btn.setStyleSheet("""
-            QPushButton { background: #ff5f57; border-radius: 14px; color: white; font-weight: bold; border: none; }
-            QPushButton:hover { background: #ff7b73; }
+            QPushButton {
+                background:#ff5f57;
+                border-radius:14px;
+                color:white;
+                border:none;
+            }
+            QPushButton:hover { background:#ff7b73; }
         """)
         close_btn.clicked.connect(self.close)
-        
+
         header.addWidget(title)
         header.addStretch()
         header.addWidget(close_btn)
         layout.addLayout(header)
 
-        self.qa_container = QtWidgets.QWidget()
-        qa_layout = QtWidgets.QVBoxLayout(self.qa_container)
-        qa_layout.setContentsMargins(0, 0, 0, 0)
-        qa_layout.setSpacing(5)
+        self.answer = QtWidgets.QLabel("Возможно, мешает NVIDIA Overlay / Game Filter или сторонние фильтры.")
+        self.answer.setWordWrap(True)
+        self.answer.setMaximumHeight(0)
+        self.answer.setStyleSheet("color:#bbb;padding-left:20px;border:none")
 
-        self.q_btn = QtWidgets.QPushButton("❓ Бот не нажимает кнопки?")
-        self.q_btn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.q_btn.setStyleSheet("""
+        question = QtWidgets.QPushButton("❓ Бот не нажимает кнопки?")
+        question.setCursor(QtCore.Qt.PointingHandCursor)
+        question.setStyleSheet("""
             QPushButton {
-                background: transparent;
-                border: none;
-                color: #00ffcc;
-                font-size: 14px;
-                text-align: left;
-                font-weight: bold;
+                background:none;
+                border:none;
+                color:#00ffcc;
+                font-weight:bold;
+                text-align:left;
             }
-            QPushButton:hover { color: white; }
+            QPushButton:hover { color:white; }
         """)
+        question.clicked.connect(self.toggle_answer)
 
-        self.a_label = QtWidgets.QLabel("Возможно, мешает редукс или фильтры от видеокарты (NVIDIA Overlay / Game Filter).")
-        self.a_label.setStyleSheet("color: #bbb; font-size: 13px; border: none; padding-left: 20px;")
-        self.a_label.setWordWrap(True)
-        self.a_label.setMaximumHeight(0)
-        #self.a_label.setGraphicsEffect(QtWidgets.QGraphicsOpacityEffect())
-
-        qa_layout.addWidget(self.q_btn)
-        qa_layout.addWidget(self.a_label)
-        
-        layout.addWidget(self.qa_container)
-        layout.addStretch(1)
-
-        self.q_btn.clicked.connect(self.toggle_answer)
-
-        telegram_row = QtWidgets.QHBoxLayout()
-        telegram_icon = QtWidgets.QLabel()
-        telegram_icon.setPixmap(self.telegram_icon_pixmap)
-        telegram_row.addWidget(telegram_icon)
-        telegram_link = QtWidgets.QLabel(
-            '<a href="https://t.me/id3001" '
-            'style="color:#0088cc; text-decoration:none; font-size:14px;">'
-            'Telegram — <b>@id3001</b></a>'
-        )
-        telegram_link.setTextFormat(QtCore.Qt.RichText)
-        telegram_link.setOpenExternalLinks(True)
-        telegram_link.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
-        telegram_link.setStyleSheet("border:none;")
-        telegram_icon.setStyleSheet("border:none;")
-        telegram_link.setFocusPolicy(QtCore.Qt.NoFocus)
-        telegram_row.addWidget(telegram_link, alignment=QtCore.Qt.AlignLeft)
-        telegram_row.addStretch(1)
-        layout.addLayout(telegram_row)
+        layout.addWidget(question)
+        layout.addWidget(self.answer)
         layout.addStretch()
 
+        row = QtWidgets.QHBoxLayout()
+        icon = QtWidgets.QLabel()
+        icon.setPixmap(self.telegram_icon)
+        link = QtWidgets.QLabel(
+            '<a href="https://t.me/id3001" '
+            'style="color:#0088cc;text-decoration:none;">Telegram — <b>@id3001</b></a>'
+        )
+        link.setStyleSheet("border:none;")
+        icon.setStyleSheet("border:none;")
+        link.setOpenExternalLinks(True)
+
+        row.addWidget(icon)
+        row.addWidget(link)
+        row.addStretch()
+        layout.addLayout(row)
+
+        self.center_card()
+
+    def center_card(self):
+        self.card.move((self.width() - self.card.width()) // 2,(self.height() - self.card.height()) // 2)
+
     def toggle_answer(self):
-        self.a_label.setGraphicsEffect(None) 
-        
-        is_collapsed = self.a_label.maximumHeight() == 0
-        target_height = self.a_label.sizeHint().height() if is_collapsed else 0
-        
-        self.anim_a = QPropertyAnimation(self.a_label, b"maximumHeight")
-        self.anim_a.setDuration(300)
-        self.anim_a.setStartValue(self.a_label.maximumHeight())
-        self.anim_a.setEndValue(target_height)
-        self.anim_a.setEasingCurve(QEasingCurve.InOutQuad)
-        self.anim_a.start()
+        expand = self.answer.maximumHeight() == 0
+        anim = QPropertyAnimation(self.answer, b"maximumHeight")
+        anim.setDuration(300)
+        anim.setStartValue(self.answer.maximumHeight())
+        anim.setEndValue(self.answer.sizeHint().height() if expand else 0)
+        anim.setEasingCurve(QEasingCurve.InOutQuad)
+        anim.start()
+        self.anim = anim
 
-    def run_card_animation(self):
-        self.card_opacity = QtWidgets.QGraphicsOpacityEffect(self.card)
-        self.card.setGraphicsEffect(self.card_opacity)
-        
-        anim_fade = QPropertyAnimation(self.card_opacity, b"opacity")
-        anim_fade.setDuration(250)
-        anim_fade.setStartValue(0)
-        anim_fade.setEndValue(1)
+    def run_animation(self):
+        opacity = QtWidgets.QGraphicsOpacityEffect(self.card)
+        self.card.setGraphicsEffect(opacity)
 
-        center_pos = QtCore.QPoint((self.width()-self.card.width())//2, (self.height()-self.card.height())//2)
-        start_pos = QtCore.QPoint(center_pos.x(), center_pos.y() - 40)
-        
-        self.card.move(start_pos)
-        anim_move = QPropertyAnimation(self.card, b"pos")
-        anim_move.setDuration(350)
-        anim_move.setStartValue(start_pos)
-        anim_move.setEndValue(center_pos)
-        anim_move.setEasingCurve(QEasingCurve.OutCubic)
+        fade = QPropertyAnimation(opacity, b"opacity")
+        fade.setDuration(250)
+        fade.setStartValue(0)
+        fade.setEndValue(1)
 
-        self.group = QParallelAnimationGroup()
-        self.group.addAnimation(anim_fade)
-        self.group.addAnimation(anim_move)
-        self.group.start()
+        move = QPropertyAnimation(self.card, b"pos")
+        move.setDuration(350)
+        move.setStartValue(self.card.pos() + QtCore.QPoint(0, -500))
+        move.setEndValue(self.card.pos())
+        move.setEasingCurve(QEasingCurve.OutCubic)
+
+        group = QParallelAnimationGroup(self)
+        group.addAnimation(fade)
+        group.addAnimation(move)
+        group.start()
+
+class GradientLabel(QtWidgets.QWidget):
+    def __init__(self, text, start_color, end_color, font_size=40, parent=None):
+        super().__init__(parent)
+        self.text = text
+        self.start_color = QtGui.QColor(start_color)
+        self.end_color = QtGui.QColor(end_color)
+        self.font = QtGui.QFont("Arial", font_size, QtGui.QFont.Bold)
+        metrics = QtGui.QFontMetrics(self.font)
+        self.text_width = metrics.horizontalAdvance(self.text)
+        self.text_height = metrics.height()
+        self.setFixedSize(self.text_width , self.text_height )
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        gradient = QtGui.QLinearGradient(0, 0, self.width(), 0)
+        gradient.setColorAt(0, self.start_color)
+        gradient.setColorAt(1, self.end_color)
+        path = QtGui.QPainterPath()
+        metrics = QtGui.QFontMetrics(self.font)
+        path.addText(0, metrics.ascent(), self.font, self.text)
+        painter.fillPath(path, QtGui.QBrush(gradient))
 
 class IndexPage(QtWidgets.QWidget):
     def __init__(self, version):
         super().__init__()
         self.version = version
-        self.telegram_icon_pixmap = QtGui.QPixmap("assets/tg.png").scaled(18, 18,QtCore.Qt.KeepAspectRatio,QtCore.Qt.SmoothTransformation)
-        self.btn_icon_pixmap = QtGui.QPixmap("assets/btn.png").scaled(18, 18,QtCore.Qt.KeepAspectRatio,QtCore.Qt.SmoothTransformation)
-        self.help_overlay = None
         self.settings = SettingsManager()
+        self.help_overlay = None
+        self.telegram_icon = load_icon("assets/tg.png")
+        self.support_icon = load_icon("assets/btn.png")
 
-        if not self.settings.get("index", "link", False):
-            self.show_first_launch_dialog()
+        self.net = QtNetwork.QNetworkAccessManager(self)
+        self.net.finished.connect(self._on_response)
 
         self.init_styles()
         self.build_ui()
         self.load_online_count()
 
+        if not self.settings.get("index", "link", False):
+            self.show_first_launch_dialog()
+
     def init_styles(self):
         self.setStyleSheet("""
             QWidget {
-                background-color: rgba(26, 26, 30, 180);
-                font-family: 'Inter', sans-serif;
+                background-color: rgba(26,26,30,180);
             }
-
-            QLabel {
-                background: transparent;
-                color: lightgray;
-                font-size: 14px;
-            }
-
+            QLabel { color: lightgray; font-size: 14px; }
             QLabel#title {
-                color: white;
-                font-size: 26px;
-                font-weight: bold;
-                letter-spacing: 1px;
+                background: transparent;
+                color:white;
+                font-size:26px;
+                font-weight:bold;
             }
-                           
             QLabel.small {
-                color: gray;
-                font-size: 12px;
+                font-size:12px;
+                color:gray;
+            }
+            QLabel#text,QLabel#online {
+                background: transparent;            
             }
         """)
 
@@ -233,139 +243,98 @@ class IndexPage(QtWidgets.QWidget):
         layout.setContentsMargins(25, 20, 25, 20)
         layout.setSpacing(15)
 
-        title = QtWidgets.QLabel("🏠 Главная")
-        title.setObjectName("title")
+        title = QtWidgets.QLabel("🏠 Главная", objectName="title")
         layout.addWidget(title)
+        welcome_row = QtWidgets.QHBoxLayout()
+        welcome_row.setSpacing(6)
 
-        description = QtWidgets.QLabel(
-            "🎮 <b>Добро пожаловать в BOT [GTA5RP]!</b><br><br>"
-            "Этот мощный инструмент поможет вам <span style='color:#00ffcc;'>автоматизировать рутину</span> "
-            "в <b>GTA5RP</b> на платформе <b>RAGE Multiplayer</b>.<br><br>"
+        welcome_text_left = QtWidgets.QLabel("🎮 <b>Добро пожаловать в</b>",objectName="text")
+        welcome_text_left.setTextFormat(QtCore.Qt.RichText)
+
+        gradient_label = GradientLabel("BOT [GTA5RP]","#b859f3","#ddc2ed",font_size=10)
+
+        welcome_text_right = QtWidgets.QLabel("<b>!</b>", objectName="text")
+        welcome_text_right.setTextFormat(QtCore.Qt.RichText)
+
+        welcome_row.addWidget(welcome_text_left)
+        welcome_row.addWidget(gradient_label)
+        welcome_row.addWidget(welcome_text_right)
+
+        welcome_row.addStretch()
+
+        layout.addLayout(welcome_row)
+        text = QtWidgets.QLabel(
+            "Этот мощный инструмент поможет вам <span style='color:#8d4bb9;'>автоматизировать рутину</span>"
+            " в <b>GTA5RP</b> на платформе <b>RAGE Multiplayer</b>.<br><br>"
             "⚙️ <u>Ключевые фичи:</u><br>"
             "• Автоматизация повторяющихся задач<br>"
             "• Интуитивный и стильный интерфейс<br>"
             "• Полная кастомизация под ваш стиль игры<br>"
             "• Регулярные обновления и поддержка<br><br>"
             "📁 Перейдите в меню сверху и выберите модуль — и вперёд к доминации!<br><br>"
-            "⚠️ <i>Внимание: использование может нарушать правила сервера. Играйте умно!</i><br><br>"
+            "<span style='color: yellow;'>⚠️ <i>Внимание: использование может нарушать правила сервера. Играйте умно!</i></span>",
+            objectName="text"
         )
-        description.setWordWrap(True)
-        layout.addWidget(description)
+        text.setWordWrap(True)
+        text.setTextFormat(QtCore.Qt.RichText)
+        layout.addWidget(text)
+        layout.addStretch()
 
-        layout.addStretch(1)
+        bottom_row = QtWidgets.QHBoxLayout()
+        bottom_row.setContentsMargins(0, 0, 0, 0)
 
-        bottom_container = QtWidgets.QHBoxLayout()
+        left_col = QtWidgets.QVBoxLayout()
+        left_col.setSpacing(8)
 
-        left_container = QtWidgets.QVBoxLayout()
-        left_container.setSpacing(8)
+        btn_support = make_link_button("Поддержка", "#00ffcc", "#8FFFE8", icon=self.support_icon)
+        btn_support.clicked.connect(self.show_help)
 
-        btn_row = QtWidgets.QHBoxLayout()
-        btn_row1 = QtWidgets.QHBoxLayout()
-
-        btn_icon = QtWidgets.QLabel()
-        btn_icon.setPixmap(self.btn_icon_pixmap)
-        telegram_icon = QtWidgets.QLabel()
-        telegram_icon.setPixmap(self.telegram_icon_pixmap)
-        btn_row.addWidget(btn_icon)
-        btn_row1.addWidget(telegram_icon)
-
-                
-        btn = QtWidgets.QPushButton("Поддержка")
-        btn.setCursor(QtCore.Qt.PointingHandCursor)
-        btn.setStyleSheet("""
-            QPushButton {
-                background: transparent; 
-                border: none; 
-                color: #00ffcc; 
-                font-size: 14px; 
-                text-decoration: underline;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                color: #8FFFE8;
-            }
-        """)
-        btn.clicked.connect(self.show_help)
-
-        btn1 = QtWidgets.QPushButton("Канал бота")
-        btn1.setCursor(QtCore.Qt.PointingHandCursor)
-        btn1.setStyleSheet("""
-            QPushButton {
-                background: transparent; 
-                border: none; 
-                color: #FF0A0A; 
-                font-size: 14px; 
-                text-decoration: underline;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                color: #FF4D4D;
-            }
-        """)
-        btn1.clicked.connect(lambda: webbrowser.open("https://t.me/bot_gta5blast"))
-
-
-        layout.addWidget(btn, alignment=QtCore.Qt.AlignCenter)
-        layout.addWidget(btn1, alignment=QtCore.Qt.AlignCenter)
-        btn_row.addWidget(btn, alignment=QtCore.Qt.AlignLeft)
-        btn_row1.addWidget(btn1, alignment=QtCore.Qt.AlignLeft)
-        btn_row.addWidget(btn)
-        btn_row1.addWidget(btn1)
-
-        left_container.addLayout(btn_row)
-        left_container.addLayout(btn_row1)
+        btn_channel = make_link_button("Канал бота", "#FF0A0A", "#FF4D4D", icon=self.telegram_icon)
+        btn_channel.clicked.connect(lambda: webbrowser.open("https://t.me/bot_gta5blast"))
 
         self.online_label = QtWidgets.QLabel("🌐 Запусков сегодня: ...")
-        left_container.addWidget(self.online_label)
 
-        bottom_container.addLayout(left_container)
-        bottom_container.addStretch(1)
+        left_col.addWidget(btn_support)
+        left_col.addWidget(btn_channel)
+        left_col.addWidget(self.online_label)
 
         version_label = QtWidgets.QLabel(f"Версия: {self.version}")
         version_label.setProperty("class", "small")
-        bottom_container.addWidget(version_label, alignment=QtCore.Qt.AlignRight)
 
-        layout.addLayout(bottom_container)
+        right_wrap = QtWidgets.QVBoxLayout()
+        right_wrap.addStretch(1)
+        right_wrap.addWidget(version_label, alignment=QtCore.Qt.AlignRight)
+        right_wrap.addStretch(1)
+
+        bottom_row.addLayout(left_col)
+        bottom_row.addStretch(1)
+        bottom_row.addLayout(right_wrap)
+
+        layout.addLayout(bottom_row)
 
     def load_online_count(self):
-        request = QtNetwork.QNetworkRequest(QUrl("https://purls.ru/online.php"))
-        GLOBAL_NETWORK_MANAGER.finished.connect(self._on_response)
-        GLOBAL_NETWORK_MANAGER.get(request)
+        self.net.get(QtNetwork.QNetworkRequest(QUrl("https://purls.ru/online.php")))
 
     def _on_response(self, reply):
         if reply.error() == QtNetwork.QNetworkReply.NoError:
-            data = reply.readAll().data().decode("utf-8").strip()
-            if data.isdigit():
-                self.online_label.setText(f"🌐 Запусков сегодня: {data}")
-            else:
-                self.online_label.setText("🌐 Запусков сегодня: ошибка данных")
+            data = reply.readAll().data().decode().strip()
+            self.online_label.setText(f"🌐 Запусков сегодня: {data if data.isdigit() else 'ошибка данных'}")
         else:
             self.online_label.setText("🌐 Запусков сегодня: ошибка сети")
-
         reply.deleteLater()
 
     def show_help(self):
         if not self.help_overlay:
             self.help_overlay = HelpOverlay(self.window())
-            self.help_overlay.setAttribute(QtCore.Qt.WA_DeleteOnClose)
-            self.help_overlay.destroyed.connect(self._clear_ref)
+            self.help_overlay.destroyed.connect(lambda: setattr(self, "help_overlay", None))
             self.help_overlay.show()
-
-    def _clear_ref(self):
-        self.help_overlay = None
-
-    def _save_settings(self):
-        self.settings.save_group("index", {
-            "link": False
-        })
 
     def show_first_launch_dialog(self):
         msg = QMessageBox(self)
-        msg.setWindowTitle("🔔 Внимание!")
-        msg.setText("У бота появился официальный Telegram-канал!\nЧтобы не потерять актуальную ссылку и получать все обновления, подпишитесь на канал прямо сейчас.")
-        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("🔔 Внимание")
+        msg.setText("У бота появился официальный Telegram-канал.\nПодпишитесь, чтобы не пропускать обновления.")
         open_btn = msg.addButton("Открыть ссылку", QMessageBox.AcceptRole)
-        close_btn = msg.addButton("Закрыть", QMessageBox.RejectRole)
+        msg.addButton("Закрыть", QMessageBox.RejectRole)
         msg.exec_()
 
         if msg.clickedButton() == open_btn:
