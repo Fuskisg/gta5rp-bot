@@ -1,5 +1,5 @@
 from PyQt5 import QtWidgets, QtCore
-from widgets.common import CommonLogger, ScriptController, SettingsManager, auto_detect_region, CommonUI
+from widgets.common import CommonLogger, ScriptController, SettingsManager, auto_detect_region, CommonUI, settings_signals
 from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
 
 class SettingsPage(QtWidgets.QWidget):
@@ -16,17 +16,10 @@ class SettingsPage(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(20, 15, 20, 15)
 
-        title = QtWidgets.QLabel("⚙️ Настройки")
-        title.setStyleSheet("""
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            margin-top: 5px;
-            background: none;
-        """)
-        layout.addWidget(title)
+        header, self.switch = CommonUI.create_switch_header("Настройки", "⚙️", switch=False)
+        layout.addLayout(header)
         
-        settings_group, settings_layout = CommonUI.create_settings_group("⚠️ Для применения настроек нужно перезайти!")
+        settings_group, settings_layout = CommonUI.create_settings_group()
 
         hover_off_on, self.switch_hover = CommonUI.create_switch_header("Звук наведения на модули", "🔊")
         volume_hover_layout, self.volume_hover, self.volume_hover_get = CommonUI.create_slider_row("Громкость звука наведения:", 0, 100, 35, step=1, suffix="")
@@ -68,6 +61,14 @@ class SettingsPage(QtWidgets.QWidget):
 
     def handle_toggle(self):
         self._save_settings()
+        settings_signals.updated.emit()
+
+    def handle_toggle_slider(self):
+        self.settings.save_group("settings", {
+            "volume_hover": self.volume_hover_get(),
+            "volume_click": self.volume_click_get(),
+        })
+        settings_signals.updated.emit()
 
     def _load_settings(self):
         hover_state = self.settings.get("settings", "switch_hover", True)
@@ -79,12 +80,6 @@ class SettingsPage(QtWidgets.QWidget):
         self.volume_click.setValue(int(volume_click))
         self.switch_hover.setChecked(hover_state)
         self.switch_click.setChecked(click_state)
-
-    def handle_toggle_slider(self):
-        self.settings.save_group("settings", {
-            "volume_hover": self.volume_hover_get(),
-            "volume_click": self.volume_click_get(),
-        })
 
     def _save_settings(self):
         self.settings.save_group("settings", {
