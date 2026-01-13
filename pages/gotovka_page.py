@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets, QtCore
 import pyautogui
 import os
-from widgets.common import CommonLogger, ScriptController, CommonUI
+from widgets.common import CommonLogger, ScriptController, CommonUI,Log
 import threading
 
 BASE_ASSETS_PATH = "assets/cook/"
@@ -82,9 +82,7 @@ class GotovkaWorker(QtCore.QThread):
         self.running = True
         self.dish_name = dish_name
         self.cycles_count = 0
-
-    def log(self, message: str):
-        CommonLogger.log(message, self.log_signal)
+        self.log = Log(self.log_signal)
 
     def _find_and_perform_action(self, image_filename: str, click_type: str) -> bool:
         full_image_path = os.path.join(BASE_ASSETS_PATH, image_filename)
@@ -122,7 +120,7 @@ class GotovkaWorker(QtCore.QThread):
 
         try:
             while self.running:
-                if not CommonLogger.wait_for_rage(log=self.log,auto_move=getattr(self, "auto_move", None)):
+                if not CommonLogger.wait_for_rage(log=self.log):
                     continue
 
                 if self._execute_recipe():
@@ -139,7 +137,3 @@ class GotovkaWorker(QtCore.QThread):
 
         except Exception as exc:
             self.log(f"[Ошибка потока] {exc}")
-        finally:
-            if self.running:
-                self.log("[■] Скрипт готовки завершён.")
-
