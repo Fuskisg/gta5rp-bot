@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import QTextEdit
 import keyboard
 import json
 import types
+import ctypes
 import cv2
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QFont, QColor
@@ -19,36 +20,50 @@ from PyQt5.QtWidgets import (
     QGridLayout, QLabel, QGraphicsDropShadowEffect, QFrame
 )
 from widgets.switch_button import SwitchButton
+import threading
+import pydirectinput
+
+def press(key: str):
+    pydirectinput.PAUSE = 0 
+    pydirectinput.FAILSAFE = False
+    pydirectinput.press(key)
+
+class Log:
+    def __init__(self, log_target=None, log_file="logs.txt", do_write=False):
+        self.log_target = log_target
+        self.log_file = log_file
+        self.do_write = do_write
+
+    def __call__(self, message: str):
+        timestamp = time.strftime("[%H:%M:%S]")
+        full_message = f"{timestamp} {message}"
+
+        if self.do_write:
+            try:
+                with open(self.log_file, "a", encoding="utf-8") as fp:
+                    fp.write(full_message + "\n")
+            except OSError:
+                pass
+
+        if self.log_target:
+            if hasattr(self.log_target, 'emit'):
+                self.log_target.emit(message)
+            elif isinstance(self.log_target, QTextEdit):
+                self.log_target.append(full_message)
+            elif callable(self.log_target):
+                self.log_target(full_message)
 
 class CommonLogger:
     _last_check = 0
     _last_result = False
-    _was_missing = False
+    _was_missing = True
 
     _REPLACEMENTS = {
         "а": "a", "е": "e", "о": "o", "р": "p", "с": "c",
         "у": "y", "х": "x", "м": "m", "т": "t", "н": "h",
         "в": "b", "к": "k",
     }
-
-    @staticmethod
-    def log(message: str,log_target: Optional[Union[pyqtSignal, Callable, QTextEdit]] = None,log_file: str = "logs.txt") -> str:
-        timestamp = time.strftime("[%H:%M:%S]")
-        full_message = f"{timestamp} {message}"
-        
-        try:
-            with open(log_file, "a", encoding="utf-8") as fp:
-                fp.write(full_message + "\n")
-        except OSError:
-            pass
-
-        if log_target:
-            if hasattr(log_target, 'emit'): 
-                log_target.emit(message)
-            elif isinstance(log_target, QTextEdit):
-                log_target.append(full_message)
-            elif callable(log_target):
-                log_target(full_message)
+    _stop = threading.Event()
 
     @staticmethod
     def safe_locate(path: str, confidence: float = 0.95,log_signal: Optional[Union[pyqtSignal, Callable]] = None) -> Any:
@@ -57,11 +72,11 @@ class CommonLogger:
         except ImageNotFoundException:
             return None
         except Exception as e:
-            CommonLogger.log(f"[Ошибка] locate {os.path.basename(path)}: {traceback.format_exc()}",log_signal)
+            Log(f"[Ошибка] locate {os.path.basename(path)}: {traceback.format_exc()}",log_signal)
             return None
 
     @staticmethod
-    def _is_rage_active() -> bool:
+    def is_rage_active() -> bool:
         active = gw.getActiveWindow()
         if not active or not active.title:
             return False
@@ -73,34 +88,42 @@ class CommonLogger:
     @staticmethod
     def is_rage_active_cached(interval: float = 0.5) -> bool:
         now = time.time()
-        if now - CommonLogger._last_check < interval:
-            return CommonLogger._last_result
-
-        CommonLogger._last_check = now
-        CommonLogger._last_result = CommonLogger._is_rage_active()
+        if now - CommonLogger._last_check >= interval:
+            CommonLogger._last_check = now
+            CommonLogger._last_result = CommonLogger.is_rage_active()
         return CommonLogger._last_result
-    
+
     @staticmethod
-    def wait_for_rage(log,auto_move: Optional[object] = None,sleep: float = 1.0) -> bool:
-        if CommonLogger.is_rage_active_cached():
-            if CommonLogger._was_missing:
-                log("Окно RAGE Multiplayer найдено.")
+    def wait_for_rage(log: Optional[Callable[[str], None]] = None,auto_move: Optional[object] = None,sleep: float = 1.0,force_log: bool = False) -> bool:
+        active = CommonLogger.is_rage_active_cached()
+
+        if active:
+            if CommonLogger._was_missing or force_log:
+                if log:
+                    log("Окно RAGE Multiplayer найдено. Скрипт активен.")
                 CommonLogger._was_missing = False
             return True
-
-        if auto_move is not None:
+        
+        if auto_move:
             try:
                 auto_move.force_disable()
             except Exception:
                 pass
 
-        if not CommonLogger._was_missing:
-            log("Окно RAGE Multiplayer не активно. Ожидание...")
+        if not CommonLogger._was_missing or force_log:
+            if log:
+                log("Окно RAGE Multiplayer не активно. Ожидание...")
             CommonLogger._was_missing = True
 
-        time.sleep(sleep)
+        CommonLogger._stop.wait(sleep)
         return False
-        
+
+    @staticmethod
+    def reset_flags():
+        CommonLogger._was_missing = True
+        CommonLogger._last_check = 0
+        CommonLogger._last_result = False
+            
 class ScriptController:
     @staticmethod
     def toggle_script(widget, worker_factory, log_output, extra_signals=None, status_signal=None, worker_args=None, worker_kwargs=None):
@@ -111,12 +134,14 @@ class ScriptController:
             worker_kwargs = worker_kwargs or {}
             widget.worker = worker_factory(*worker_args, **worker_kwargs)
 
+            ui_logger = Log(log_target=log_output, do_write=True)
+            widget.worker.log_signal.connect(ui_logger)
+
             def stop(self):
                 self.running = False
                 if hasattr(self, "_stop"):
                     self._stop.set()
             widget.worker.stop = types.MethodType(stop, widget.worker)
-            widget.worker.log_signal.connect(lambda text: CommonLogger.log(text, log_output))
 
             if extra_signals:
                 for signal_name, slot in extra_signals.items():
@@ -124,7 +149,7 @@ class ScriptController:
                     if signal:
                         signal.connect(slot)
 
-            widget.worker.finished.connect(lambda: CommonLogger.log("[■] Скрипт остановлен.", log_output))
+            widget.worker.finished.connect(lambda: ui_logger("[■] Скрипт остановлен."))
             widget.worker.start()
         else:
             if widget.worker:
@@ -132,6 +157,10 @@ class ScriptController:
 
         if status_signal:
             status_signal.emit(checked)
+
+class SettingsSignals(QtCore.QObject):
+    updated = QtCore.pyqtSignal()
+settings_signals = SettingsSignals()
 
 class SettingsManager:
     _instance = None
@@ -453,7 +482,7 @@ class OverlayWindow(QWidget):
         self.close()
 
     def _check_game_focus(self):
-        if CommonLogger.is_rage_mp_active():
+        if CommonLogger.wait_for_rage():
             if not self.isVisible():
                 self.show()
                 self.move_to_bottom_right()
@@ -506,7 +535,7 @@ class CheckWithTooltip(QtWidgets.QWidget):
         self.Check = QtWidgets.QCheckBox(text, self)
         self.Check.setCursor(QtCore.Qt.PointingHandCursor)
         self.Check.setStyleSheet("""
-            QCheckBox { color: white; font-size: 14px; }
+            QCheckBox { color: white; font-size: 12px; }
             QCheckBox::indicator { width:15px; height:15px; border:1px solid #fff; border-radius:3px; background:transparent; }
             QCheckBox::indicator:checked { border:1px solid #0A84FF; background-color:#0A84FF; image: url(assets/check.png); }
         """)
@@ -564,17 +593,24 @@ class CommonUI:
 
 
     @staticmethod
-    def create_switch_header(label_text: str, icon: str = "", font_size: int = 16):
+    def create_switch_header(label_text: str, icon: str = "", font_size: int = 18, switch: bool = True):
         layout = QtWidgets.QHBoxLayout()
-        label = QtWidgets.QLabel(f"{icon} {label_text}")
-        label.setStyleSheet(f"color: white; font-size: {font_size}px; background: none;")
-
-        switch = SwitchButton()
+        display_text = f"{icon} {label_text}".strip()
+        label = QtWidgets.QLabel(display_text)
+        style = f"color: white; font-size: {font_size}px; background: none;"
+        if not switch:
+            style += "margin-top: 5px; margin-bottom: 5px;"
+        
+        label.setStyleSheet(style)
         layout.addWidget(label)
         layout.addStretch()
-        layout.addWidget(switch)
-        return layout, switch
 
+        switch_widget = SwitchButton() if switch else None
+        if switch_widget:
+            layout.addWidget(switch_widget)
+
+        return layout, switch_widget
+    
     @staticmethod
     def create_counter(text="Счётчик: 0", font_size: int = 14):
         label = QtWidgets.QLabel(text)
@@ -675,11 +711,12 @@ class HotkeyManager:
         self._enabled = False
         self.log_signal = log_signal
         self.toggle_callback = toggle_callback
+        self.log = Log(self.log_signal)
 
     def toggle(self):
         self._enabled = not self._enabled
         state = "включено" if self._enabled else "выключено"
-        CommonLogger.log(f"Хоткей: {state}", self.log_signal)
+        self.log(f"Хоткей: {state}")
         if self.toggle_callback:
             self.toggle_callback(self._enabled)
 
@@ -687,9 +724,9 @@ class HotkeyManager:
         self.unregister()
         try:
             self._hotkey_id = keyboard.add_hotkey(self.hotkey, self.toggle)
-            CommonLogger.log(f"Хоткей '{self.hotkey}' зарегистрирован", self.log_signal)
+            self.log(f"Хоткей '{self.hotkey}' зарегистрирован")
         except Exception as exc:
-            CommonLogger.log(f"Ошибка бинда '{self.hotkey}': {exc}", self.log_signal)
+            self.log(f"Ошибка бинда '{self.hotkey}': {exc}")
 
     def unregister(self):
         if self._hotkey_id is not None:
@@ -709,8 +746,8 @@ class HotkeyLineEdit(QtWidgets.QLineEdit):
     def __init__(self, default="", parent=None):
         super().__init__(default, parent)
         self.setReadOnly(True)
-        self.setFocusPolicy(QtCore.Qt.StrongFocus)
-
+        self.setFocusPolicy(QtCore.Qt.ClickFocus)
+        self.setFixedHeight(21)
         self._value = default
         self._waiting = False
 
