@@ -6,7 +6,7 @@ import numpy as np
 import mss
 import os
 from pynput.keyboard import Controller
-from widgets.common import CommonLogger, ScriptController, HotkeyManager, SettingsManager, auto_detect_region, load_images, CommonUI
+from widgets.common import CommonLogger, ScriptController, HotkeyManager, SettingsManager, auto_detect_region, load_images, CommonUI, Log, press
 import threading
 
 class CowPage(QtWidgets.QWidget):
@@ -73,6 +73,7 @@ class CowWorker(QtCore.QThread):
 
     def __init__(self, hotkey: str = 'f5', pause_delay: float = 0.07):
         super().__init__()
+        self.log = Log(self.log_signal)
         self.running = True
         self._count = 0
         try:
@@ -88,7 +89,6 @@ class CowWorker(QtCore.QThread):
         self.min_press_interval = 0
         self._last_press_time = 0.0
         self.ui_update_every = 5
-        self.keyboard_controller = Controller()
         self.hotkey_manager = HotkeyManager(
             hotkey=hotkey,
             toggle_callback=self._on_toggle_auto_e,
@@ -97,9 +97,6 @@ class CowWorker(QtCore.QThread):
 
     def _on_toggle_auto_e(self, enabled: bool):
         self._auto_e_enabled = enabled
-
-    def log(self, message: str):
-        CommonLogger.log(message, self.log_signal)
 
     def run(self):
         self.hotkey_manager.register()
@@ -125,19 +122,16 @@ class CowWorker(QtCore.QThread):
                         now = time.time()
                         if now - self._last_press_time >= self.min_press_interval:
                             if scores.get("1", -1) >= scores.get("2", -1):
-                                self.keyboard_controller.tap('a')
-                                self.keyboard_controller.tap('ф')
+                                press('a')
                             else:
-                                self.keyboard_controller.tap('d')
-                                self.keyboard_controller.tap('в')
+                                press('d')
 
                             self._last_press_time = now
                             if self._count % self.ui_update_every == 0:
                                 self.counter_signal.emit(self._count)
 
                     elif self._auto_e_enabled:
-                        self.keyboard_controller.tap('e')
-                        self.keyboard_controller.tap('у')
+                        press('e')
 
                     if self.pause_delay > 0:
                         if self._stop.wait(self.pause_delay):
