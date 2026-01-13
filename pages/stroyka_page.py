@@ -1,10 +1,9 @@
 from PyQt5 import QtWidgets, QtCore
-from widgets.common import CommonLogger, ScriptController, load_images, CommonUI, SettingsManager, AutoHold
+from widgets.common import CommonLogger, ScriptController, load_images, CommonUI, SettingsManager, AutoHold, Log, press
 from pynput.keyboard import Controller
 import time
 import threading
 import keyboard
-
 from pynput import keyboard as pynput_keyboard, mouse as pynput_mouse
 from pynput.keyboard import Key, KeyCode, Controller as KeyboardController, Listener as KeyboardListener
 
@@ -69,19 +68,18 @@ class StroykaWorker(QtCore.QThread):
 
     def __init__(self, hotkey: str = "f5"):
         super().__init__()
+        self.log = Log(self.log_signal)
         self.running = False
         self.count = 0
         self.current_actions = 0
         self.img_key = load_images("stroyka", mapping={
-            "image1.png": {"code": 0x45},
-            "image2.png": {"code": 0x89},
-            "image3.png": {"code": 0x46},
-            "image4.png": {"code": 0x48},
+            "image1.png":{"en":"e"},
+            "image2.png":{"en":"y"},
+            "image3.png":{"en":"f"},
+            "image4.png":{"en":"h"},
         })
         self._stop = threading.Event()
-        self._shown = {p: False for p in self.img_key}
         self._visible = {p: False for p in self.img_key}
-        self.keyboard_controller = Controller()
         self.detection_cache = {}
         self._toggle_requested = False
         self.auto_move = AutoHold(
@@ -91,9 +89,6 @@ class StroykaWorker(QtCore.QThread):
         self.hotkey = hotkey or "f5"
 
         keyboard.add_hotkey(self.hotkey, lambda: setattr(self, "_toggle_requested", True))
-
-    def log(self, message: str):
-        self.log_signal.emit(message)
 
     def safe_locate(self, path: str, ttl=0.1):
         now = time.time()
@@ -130,7 +125,6 @@ class StroykaWorker(QtCore.QThread):
 
         except Exception as e:
             self.log(f"[Критическая ошибка]\n{str(e)}")
-
         finally:
             self.auto_move.force_disable()
             self.running = False
@@ -138,20 +132,14 @@ class StroykaWorker(QtCore.QThread):
     def _handle_visible_image(self, path: str, keys: dict):
         if not self._visible[path]:
             self._visible[path] = True
-            self._shown[path] = False
             self.count += 1
             self.counter_signal.emit(self.count)
-            self.log(f"[✓] Найдено → спам '{keys['code']}'")
+            self.log(f"[✓] Найдено → спам '{keys['en']}'")
             self.current_actions = self.count
 
         press_count = 0
         while self.running and press_count < 60:
-            #self.keyboard_controller.tap(keys['en'])
-            #self.keyboard_controller.tap(keys['ru'])
-            controller = KeyboardController()
-            controller.press(pynput_keyboard.KeyCode.from_vk(keys['code']))  
-            time.sleep(0.03)
-            controller.release(pynput_keyboard.KeyCode.from_vk(keys['code']))
+            press(keys['en'])
             press_count += 1
             if press_count % 5 == 0:
                 self._stop.wait(0.001)
