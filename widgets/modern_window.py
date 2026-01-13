@@ -12,74 +12,6 @@ from pages.gym_page import GymPage
 from pages.settings import SettingsPage
 from pages.demorgan_page import DemorganPage
 from pages.bp_page import BpPage
-import random
-import math
-
-class SnowWidget(QtWidgets.QWidget):
-    def __init__(self, parent=None, snowflake_count=45):
-        super().__init__(parent)
-        self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
-        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
-        
-        self.snowflake_count = snowflake_count
-        self.snowflakes = []
-        self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.update_snow)
-        self.timer.start(50)
-        self.init_snowflakes()
-
-    def init_snowflakes(self):
-        self.snowflakes.clear()
-        for _ in range(self.snowflake_count):
-            self.snowflakes.append({
-                "x": random.uniform(0, self.width() or 800),
-                "y": random.uniform(0, self.height() or 600),
-                "r": random.uniform(1.5, 3.5),
-                "speed": random.uniform(0.3, 1.0),
-                "drift": random.uniform(-0.25, 0.25),
-                "phase": random.uniform(0, 2 * math.pi),
-                "opacity": random.uniform(0.5, 1.0),
-                "twinkle_speed": random.uniform(0.005, 0.015),
-                "rotation": random.uniform(0, 360)
-            })
-
-    def resizeEvent(self, event):
-        self.init_snowflakes()
-        super().resizeEvent(event)
-
-    def update_snow(self):
-        for flake in self.snowflakes:
-            flake["y"] += flake["speed"]
-            flake["x"] += math.sin(flake["phase"]) * 0.3 + flake["drift"]
-            flake["phase"] += 0.05
-            flake["rotation"] += 0.5
-            flake["opacity"] = 0.6 + math.sin(flake["phase"]) * 0.4
-            if flake["y"] > self.height():
-                flake["y"] = -flake["r"]
-                flake["x"] = random.uniform(0, self.width())
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QtGui.QPainter(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-
-        for flake in self.snowflakes:
-            alpha = max(0.1, min(1.0, flake["opacity"]))
-            color = QtGui.QColor(255, 255, 255)
-            color.setAlphaF(alpha)
-
-            glow_color = QtGui.QColor(180, 200, 255)
-            glow_color.setAlphaF(alpha * 0.25)
-            gradient = QtGui.QRadialGradient(QtCore.QPointF(flake["x"], flake["y"]), flake["r"] * 6)
-            gradient.setColorAt(0.0, glow_color)
-            gradient.setColorAt(1.0, QtCore.Qt.transparent)
-            painter.setBrush(QtGui.QBrush(gradient))
-            painter.setPen(QtCore.Qt.NoPen)
-            painter.drawEllipse(QtCore.QPointF(flake["x"], flake["y"]), flake["r"] * 6, flake["r"] * 6)
-
-            painter.setBrush(color)
-            painter.drawEllipse(QtCore.QPointF(flake["x"], flake["y"]), flake["r"], flake["r"])
-
 
 class UpdateChecker(QtCore.QObject):
     update_available = QtCore.pyqtSignal(str)
@@ -104,7 +36,7 @@ class UpdateChecker(QtCore.QObject):
         reply.deleteLater()
 
 class ModernWindow(QtWidgets.QMainWindow):
-    CURRENT_VERSION = "3.12"
+    CURRENT_VERSION = "3.13"
 
     def __init__(self):
         super().__init__()
@@ -136,13 +68,6 @@ class ModernWindow(QtWidgets.QMainWindow):
         wrapper = QtWidgets.QWidget()
         wrapper.setLayout(root_layout)
         self.setCentralWidget(wrapper)
-
-        self.snow_widget = SnowWidget(self.container, snowflake_count=45)
-        self.snow_widget.resize(self.container.size())
-        self.snow_widget.lower()
-        self.snow_widget.show()
-
-        self.container.installEventFilter(self)
 
         main_layout = QtWidgets.QVBoxLayout(self.container)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -182,11 +107,6 @@ class ModernWindow(QtWidgets.QMainWindow):
             self.on_module_clicked(first_button, first_page_cls)
 
         self._start_update_check()
-
-    def eventFilter(self, obj, event):
-        if obj is self.container and event.type() == QtCore.QEvent.Resize:
-            self.snow_widget.resize(self.container.size())
-        return super().eventFilter(obj, event)
 
     def _create_module_grid(self):
         grid_widget = QtWidgets.QWidget()
