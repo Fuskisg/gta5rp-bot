@@ -1,6 +1,7 @@
-settings.json
-logs.txt
-bp.json
-/widgets/__pycache__
+/configs/config.json
+/configs/log.txt
+/configs/bp.json
+/core/__pycache__
 /pages/__pycache__
 /build_temp/
+README.md
