@@ -1,0 +1,375 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>⌨️ Пользовательские Бинды</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Создавайте свои комбинации клавиш. Назначьте хоткей и клавиши для зажатия.
+    </div>
+
+    <div class="settings-group">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">Список биндов</h3>
+            <div style="display: flex;">
+                <button class="button" style="background: var(--danger); padding: 10px; margin-right: 10px;width: 150px; font-size: 12px; box-shadow: 0 10px 25px rgba(239, 68, 68, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.15);" onclick="stopAllBinds()">
+                    Остановить все
+                </button>
+                <button class="button" style="padding: 10px;width: 150px; font-size: 12px;" onclick="addNewBind()">
+                    Добавить бинд
+                </button>
+            </div>
+        </div>
+
+        <div id="binds-container" class="binds-grid">
+        </div>
+    </div>
+
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+
+    <div id="bind-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">✨ Новый бинд</h3>
+            <button class="modal-close-btn" onclick="closeModal()">✕</button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label>Название:</label>
+                    <input type="text" id="bind-name" placeholder="Например: Бег вперёд">
+                </div>
+                
+                <div class="modal-field">
+                    <label>Хоткей:</label>
+                    <select id="bind-hotkey">
+                        <option value="">Выберите...</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="modal-field">
+                <label>Зажимаемые клавиши:</label>
+                <div id="selected-keys" class="selected-keys">
+                    <span class="placeholder-text">Выберите клавиши ниже...</span>
+                </div>
+            </div>
+            
+            <div id="key-buttons" class="key-buttons">
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+            <button class="btn-save" onclick="saveBind()">Сохранить</button>
+        </div>
+    </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var savedBinds = JSON.parse('{{ settings.binds | default([]) | tojson }}');
+    var editingBindId = null;
+    var tempBind = null;
+    var bindIdCounter = (savedBinds && savedBinds.length > 0) ? Math.max(...savedBinds.map(b => b.id || 0)) + 1 : 1;
+    var activeBinds = new Set();
+
+    var availableKeys = [
+        'w', 'a', 's', 'd', 'q', 'e', 'r', 'f', 'g', 'h',
+        'space', 'shift', 'ctrl', 'alt', 'tab', 
+        'c', 'v', 'x', 'z', 'b', 'n', 'm',
+        '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'
+    ];
+
+    var availableHotkeys = [
+        'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 
+        'f9', 'f10', 'f11', 'f12', 'numpad0', 'numpad1', 
+        'numpad2', 'numpad3', 'numpad4', 'numpad5'
+    ];
+
+    function initHotkeySelect() {
+        var select = document.getElementById('bind-hotkey');
+        if (!select) return;
+        select.innerHTML = '<option value="">Выберите...</option>' + 
+            availableHotkeys.map(function(k) {
+                return '<option value="' + k + '">' + k.toUpperCase() + '</option>';
+            }).join('');
+    }
+
+    function initKeyButtons() {
+        var container = document.getElementById('key-buttons');
+        if (!container) return;
+        container.innerHTML = availableKeys.map(function(key) {
+            return '<button class="key-btn" data-key="' + key + '" onclick="toggleKey(\'' + key + '\')">' + 
+                   key.toUpperCase() + '</button>';
+        }).join('');
+    }
+
+    function openModal(isNew) {
+        var modal = document.getElementById('bind-modal');
+        var title = document.getElementById('modal-title');
+        var card = document.querySelector('.card');
+        
+        if (isNew) {
+            title.textContent = '✨ Новый бинд';
+            tempBind = { id: bindIdCounter++, name: '', hotkey: '', keys: [], isNew: true };
+        } else {
+            title.textContent = '✏️ Редактирование бинда';
+        }
+        
+        document.getElementById('bind-name').value = tempBind.name || '';
+        document.getElementById('bind-hotkey').value = tempBind.hotkey || '';
+        
+        updateSelectedKeysDisplay();
+        updateKeyButtons();
+        
+        modal.style.display = 'flex';
+        if (card) card.classList.add('modal-active');
+    }
+
+    window.closeModal = function() {
+        var modal = document.getElementById('bind-modal');
+        var card = document.querySelector('.card');
+        modal.style.display = 'none';
+        if (card) card.classList.remove('modal-active');
+        editingBindId = null;
+        tempBind = null;
+    };
+
+    window.addNewBind = function() {
+        tempBind = { id: bindIdCounter++, name: '', hotkey: '', keys: [], isNew: true };
+        editingBindId = tempBind.id;
+        openModal(true);
+    };
+
+    window.editBind = function(id) {
+        var bind = savedBinds.find(function(b) { return b.id === id; });
+        if (bind) {
+            tempBind = JSON.parse(JSON.stringify(bind));
+            tempBind.isNew = false;
+            editingBindId = id;
+            openModal(false);
+        }
+    };
+
+    function updateSelectedKeysDisplay() {
+        var container = document.getElementById('selected-keys');
+        if (!container || !tempBind) return;
+        
+        if (tempBind.keys.length > 0) {
+            container.innerHTML = tempBind.keys.map(function(k) {
+                return '<span class="key-tag">' + k.toUpperCase() + '</span>';
+            }).join('');
+        } else {
+            container.innerHTML = '<span class="placeholder-text">Выберите клавиши ниже...</span>';
+        }
+    }
+
+    function updateKeyButtons() {
+        if (!tempBind) return;
+        var buttons = document.querySelectorAll('#key-buttons .key-btn');
+        buttons.forEach(function(btn) {
+            var key = btn.getAttribute('data-key');
+            btn.classList.toggle('selected', tempBind.keys.includes(key));
+        });
+    }
+
+    window.toggleKey = function(key) {
+        if (!tempBind) return;
+        
+        var index = tempBind.keys.indexOf(key);
+        if (index > -1) {
+            tempBind.keys.splice(index, 1);
+        } else {
+            tempBind.keys.push(key);
+        }
+        
+        var btn = document.querySelector('#key-buttons .key-btn[data-key="' + key + '"]');
+        if (btn) {
+            btn.classList.toggle('selected', tempBind.keys.includes(key));
+        }
+        updateSelectedKeysDisplay();
+    };
+
+    window.saveBind = async function() {
+        if (!tempBind) return;
+        
+        tempBind.name = document.getElementById('bind-name').value.trim();
+        tempBind.hotkey = document.getElementById('bind-hotkey').value;
+        
+        if (!tempBind.name) {
+            alert('Введите название бинда');
+            return;
+        }
+        
+        if (!tempBind.hotkey) {
+            alert('Выберите хоткей');
+            return;
+        }
+        
+        var duplicate = savedBinds.find(function(b) {
+            return b.id !== tempBind.id && b.hotkey === tempBind.hotkey;
+        });
+        if (duplicate) {
+            alert('Хоткей ' + tempBind.hotkey.toUpperCase() + ' уже используется в бинде "' + duplicate.name + '"');
+            return;
+        }
+        
+        if (tempBind.keys.length === 0) {
+            alert('Выберите хотя бы одну клавишу для зажатия');
+            return;
+        }
+        
+        if (tempBind.isNew) {
+            delete tempBind.isNew;
+            savedBinds.push(tempBind);
+        } else {
+            var index = savedBinds.findIndex(function(b) { return b.id === tempBind.id; });
+            if (index !== -1) {
+                delete tempBind.isNew;
+                savedBinds[index] = tempBind;
+            }
+        }
+
+        try {
+            var res = await fetch('/api/keybinds/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ binds: savedBinds })
+            });
+            var data = await res.json();
+            if (data.status === 'ok') {
+                closeModal();
+                renderBinds();
+            } else {
+                alert('Ошибка сохранения');
+            }
+        } catch (err) {
+            console.error("Ошибка сохранения:", err);
+            alert('❌ Ошибка сохранения бинда');
+        }
+    };
+
+    window.deleteBind = async function(id) {
+        if (!confirm('Удалить этот бинд?')) return;
+        
+        savedBinds = savedBinds.filter(function(b) { return b.id !== id; });
+        
+        try {
+            await fetch('/api/keybinds/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ binds: savedBinds })
+            });
+        } catch (err) {
+            console.error("Ошибка удаления:", err);
+        }
+        
+        renderBinds();
+    };
+
+    window.testBind = async function(id) {
+        try {
+            var res = await fetch('/api/keybinds/test', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: id })
+            });
+            var data = await res.json();
+            if (data.active) {
+                activeBinds.add(id);
+            } else {
+                activeBinds.delete(id);
+            }
+            renderBinds();
+        } catch (err) {
+            console.error("Ошибка теста:", err);
+        }
+    };
+
+    window.stopAllBinds = async function() {
+        try {
+            await fetch('/api/keybinds/stop_all', { method: 'POST' });
+            activeBinds.clear();
+            renderBinds();
+        } catch (err) {
+            console.error("Ошибка остановки:", err);
+        }
+    };
+
+    function renderBinds() {
+        var container = document.getElementById('binds-container');
+        if (!container) return;
+        
+        var html = '';
+        
+        savedBinds.forEach(function(bind) {
+            var isActive = activeBinds.has(bind.id);
+            html += '<div class="bind-row ' + (isActive ? 'active' : '') + '">' +
+                '<div class="bind-row-name">' + (bind.name || 'Без названия') + '</div>' +
+                '<div class="bind-row-hotkey">' + (bind.hotkey ? bind.hotkey.toUpperCase() : '—') + '</div>' +
+                '<div class="bind-row-keys">' +
+                    bind.keys.map(function(k) { return '<span class="key-tag">' + k.toUpperCase() + '</span>'; }).join('') +
+                '</div>' +
+                '<div class="bind-row-actions">' +
+                    '<button class="icon-btn ' + (isActive ? 'stop' : 'play') + '" onclick="testBind(' + bind.id + ')" title="' + (isActive ? 'Остановить' : 'Запустить') + '">' +
+                        (isActive ? '⏹' : '▶') +
+                    '</button>' +
+                    '<button class="icon-btn" onclick="editBind(' + bind.id + ')" title="Редактировать">✏️</button>' +
+                    '<button class="icon-btn delete" onclick="deleteBind(' + bind.id + ')" title="Удалить">🗑️</button>' +
+                '</div>' +
+            '</div>';
+        });
+        
+        if (savedBinds.length === 0) {
+            html = '<div class="empty-state">' +
+                '<div class="empty-state-icon">⌨️</div>' +
+                '<p>Нет сохранённых биндов</p>' +
+                '<p style="font-size: 13px; margin-top: 5px;">Нажмите "Добавить бинд" чтобы создать первый</p>' +
+            '</div>';
+        }
+        
+        container.innerHTML = html;
+    }
+
+    initHotkeySelect();
+    initKeyButtons();
+    renderBinds();
+
+    var modal = document.getElementById('bind-modal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    }
+
+    fetch('/api/keybinds/active')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            (data.active || []).forEach(function(id) {
+                activeBinds.add(id);
+            });
+            renderBinds();
+        });
+
+    fetch('/api/get_logs')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (window.logManager) {
+                data.logs.filter(function(l) { return l.includes('[keybinds]'); })
+                    .forEach(function(l) { window.logManager.append(l); });
+            }
+        });
+})();
+</script>
+{% endblock %}

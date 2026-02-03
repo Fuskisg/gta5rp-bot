@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>⛓️ Деморган</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Автоматически ищет токаря и швейку, вычисляет время ожидания и выполняет клики.
+    </div>
+    <div class="settings-group">
+        <div class="input-group">
+            <label>Сигнал токаря: <span id="tokar_v">{{settings.tokar_pause}}</span>s</label>
+            <input type="range" id="tokar_pause" min="30" max="120" step="1" value="{{settings.tokar_pause}}" oninput="document.getElementById('tokar_v').innerText=this.value">
+        </div>
+
+        <div class="input-group">
+            <label>Сигнал швейки: <span id="shveika_v">{{settings.shveika_pause}}</span>s</label>
+            <input type="range" id="shveika_pause" min="60" max="150" step="1" value="{{settings.shveika_pause}}" oninput="document.getElementById('shveika_v').innerText=this.value">
+        </div>
+
+        <div class="input-group">
+            <label>Пауза швейки: <span id="shveika_exe_v">{{settings.shveika_exe}}</span>s</label>
+            <input type="range" id="shveika_exe" min="0" max="2" step="0.1" value="{{settings.shveika_exe}}" oninput="document.getElementById('shveika_exe_v').innerText=this.value">
+        </div>
+
+        <button class="button" id="demorgan-btn" onclick="toggleDemorgan()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const btn = document.getElementById('demorgan-btn');
+    window.updatePageUI = function(active) {
+        window.isDemorganActive = active;
+        if (!btn) return;
+        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
+        btn.style.background = active ? '#ef4444' : '#10b981';
+    };
+
+    window.toggleDemorgan = async function() {
+        const settings = {
+            tokar_pause: parseInt(document.getElementById('tokar_pause').value) || 65,
+            shveika_pause: parseInt(document.getElementById('shveika_pause').value) || 85,
+            shveika_exe: parseFloat(document.getElementById('shveika_exe').value) || 0.1
+        };
+
+        try {
+            const res = await fetch('/api/demorgan/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    active: !window.isDemorganActive,
+                    settings: settings
+                })
+            });
+            const data = await res.json();
+            window.updatePageUI(data.active);
+        } catch (err) {
+            console.error("Ошибка Деморгана:", err);
+        }
+    };
+
+    const serverStatus = "{{ 'true' if active else 'false' }}"; 
+    window.updatePageUI(serverStatus === 'true');
+
+    fetch('/api/get_logs')
+        .then(res => res.json())
+        .then(data => {
+            if (window.logManager) {
+                data.logs.filter(l => l.includes('[demorgan]')).forEach(l => window.logManager.append(l));
+            }
+        });
+})();
+</script>
+{% endblock %}

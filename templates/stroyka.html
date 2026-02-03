@@ -1,0 +1,111 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>⛏️ Стройка | Шахта</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Автоматически распознаёт изображения мини-игры на экране и нажимает соответствующие клавиши (<strong>E</strong>, <strong>Y</strong>, <strong>F</strong>, <strong>H</strong>).
+    </div>
+    
+    <div class="settings-group">
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">⌨️ Хоткей для автобега</div>
+                <div class="hotkey-description">Включает/выключает автоматическое нажатие <strong>Shift+W</strong></div>
+            </div>
+            <input type="text" id="hotkey-input" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.walker_hotkey | default('f5', true) | upper }}">
+        </div>
+
+        <button class="button" id="stroyka-btn" onclick="toggleStroyka()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
+<script>
+(function() {
+    window.toggleStroyka = async function() {
+        const hotkeyInput = document.getElementById('hotkey-input');
+        
+        try {
+            const res = await fetch('/api/stroyka/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    walker_hotkey: hotkeyInput ? hotkeyInput.value.toLowerCase() : 'f5'
+                })
+            });
+            const data = await res.json();
+            if (window.updateStroykaUI) {
+                window.updateStroykaUI(data.active);
+                if (data.counter !== undefined) {
+                    document.getElementById('counter-value').textContent = data.counter;
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    window.updateStroykaUI = function(active) {
+        const btn = document.getElementById('stroyka-btn');
+        if (!btn) return;
+        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
+        btn.style.background = active ? '#ef4444' : '#10b981';
+    };
+
+    window.updatePageUI = function(active) {
+        window.updateStroykaUI(active);
+    };
+
+    let counterInterval;
+    function startCounterUpdate() {
+        if (counterInterval) clearInterval(counterInterval);
+        counterInterval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/stroyka/counter');
+                const data = await res.json();
+                if (data.counter !== undefined) {
+                    document.getElementById('counter-value').textContent = data.counter;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }, 1000);
+    }
+
+    window.initStroykaPage = function() {
+        const container = document.getElementById('log-container');
+        if (container) container.innerHTML = '';
+        fetch('/api/get_logs')
+            .then(res => res.json())
+            .then(data => {
+                if (window.logManager) {
+                    data.logs.filter(l => l.includes('[stroyka]')).forEach(l => window.logManager.append(l));
+                }
+            });
+        
+        const serverStatus = "{{ 'true' if active else 'false' }}"; 
+        window.updateStroykaUI(serverStatus === 'true');
+        
+        if (serverStatus === 'true') {
+            startCounterUpdate();
+        }
+        
+        window.registerHotkeyInput('hotkey-input');
+    };
+
+    window.initStroykaPage();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>🍜 Кулинария</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Автоматически готовит выбранное блюдо, распознавая ингредиенты на экране.
+    </div>
+    
+    <div class="settings-group">
+        <div class="input-group">
+            <label>
+                Выберите блюдо:
+            </label>
+            <select id="dish-select" class="input-text">
+                {% for recipe in recipes %}
+                <option value="{{ recipe }}" {% if settings.selected_dish == recipe %}selected{% endif %}>
+                    {{ recipe }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button class="button" id="cooking-btn" onclick="toggleCooking()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    window.toggleCooking = async function() {
+        const dishSelect = document.getElementById('dish-select');
+        const selectedDish = dishSelect ? dishSelect.value : 'Фруктовый смузи';
+        
+        try {
+            const res = await fetch('/api/cooking/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ dish: selectedDish })
+            });
+            const data = await res.json();
+            if (window.updateCookingUI) window.updateCookingUI(data.active);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    window.updateCookingUI = function(active) {
+        const btn = document.getElementById('cooking-btn');
+        if (!btn) return;
+        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
+        btn.style.background = active ? '#ef4444' : '#10b981';
+    };
+
+    window.updatePageUI = function(active) {
+        window.updateCookingUI(active);
+    };
+
+    window.initCookingPage = function() {
+        const container = document.getElementById('log-container');
+        if (container) container.innerHTML = '';
+        fetch('/api/get_logs')
+            .then(res => res.json())
+            .then(data => {
+                if (window.logManager) {
+                    data.logs.filter(l => l.includes('[cooking]')).forEach(l => window.logManager.append(l));
+                }
+            });
+        
+        const serverStatus = "{{ 'true' if active else 'false' }}"; 
+        window.updateCookingUI(serverStatus === 'true');
+    };
+
+    window.initCookingPage();
+})();
+</script>
+{% endblock %}

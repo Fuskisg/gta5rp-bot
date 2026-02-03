@@ -1,0 +1,149 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>🏋️ Качалка</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Распознает зеленый круг мини-игры на экране и автоматически нажимает <strong>Пробел</strong>. Периодически использует еду.
+    </div>
+    
+    <div class="settings-group">
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">⌨️ Хоткей автонажатия E</div>
+                <div class="hotkey-description">Включает/выключает автоматическое нажатие <strong>E</strong></div>
+            </div>
+            <input type="text" id="hotkey-auto-e" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.auto_e_hotkey | default('f5', true) | upper }}">
+        </div>
+
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">🍔 Хоткей еды</div>
+                <div class="hotkey-description">Клавиша, для использования еды</div>
+            </div>
+            <input type="text" id="hotkey-food" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.food_key | default('k', true) | upper }}">
+        </div>
+
+        <div class="input-group">
+            <label>
+                Пауза между едой:
+                <span id="food-pause-value">{{ settings.food_pause | default(1800, true) }}</span>s
+            </label>
+            <input type="range" id="food-pause-slider" min="1" max="3600" value="{{ settings.food_pause | default(1800, true) }}" step="1">
+        </div>
+
+        <div class="input-group" style="display: none;">
+            <label style="font-size: 1.2rem; color: var(--grad-start);">
+                <span class="icon">📊</span>
+                Счётчик: <span id="counter-value">{{ counter }}</span>
+            </label>
+        </div>
+
+        <button class="button" id="gym-btn" onclick="toggleGym()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
+<script>
+(function() {
+    const foodPauseSlider = document.getElementById('food-pause-slider');
+    const foodPauseValue = document.getElementById('food-pause-value');
+    
+    if (foodPauseSlider && foodPauseValue) {
+        foodPauseSlider.addEventListener('input', function() {
+            foodPauseValue.textContent = this.value;
+        });
+    }
+
+    window.toggleGym = async function() {
+        const autoEHotkey = document.getElementById('hotkey-auto-e');
+        const foodHotkey = document.getElementById('hotkey-food');
+        const foodPause = document.getElementById('food-pause-slider');
+        
+        try {
+            const res = await fetch('/api/gym/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    auto_e_hotkey: autoEHotkey ? autoEHotkey.value.toLowerCase() : 'f5',
+                    food_key: foodHotkey ? foodHotkey.value.toLowerCase() : 'k',
+                    food_pause: foodPause ? parseInt(foodPause.value) : 1800
+                })
+            });
+            const data = await res.json();
+            if (window.updateGymUI) {
+                window.updateGymUI(data.active);
+                if (data.counter !== undefined) {
+                    document.getElementById('counter-value').textContent = data.counter;
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    window.updateGymUI = function(active) {
+        const btn = document.getElementById('gym-btn');
+        if (!btn) return;
+        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
+        btn.style.background = active ? '#ef4444' : '#10b981';
+    };
+
+    window.updatePageUI = function(active) {
+        window.updateGymUI(active);
+    };
+
+    // Обновление счетчика каждую секунду
+    let counterInterval;
+    function startCounterUpdate() {
+        if (counterInterval) clearInterval(counterInterval);
+        counterInterval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/gym/counter');
+                const data = await res.json();
+                if (data.counter !== undefined) {
+                    document.getElementById('counter-value').textContent = data.counter;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }, 1000);
+    }
+
+    window.initGymPage = function() {
+        const container = document.getElementById('log-container');
+        if (container) container.innerHTML = '';
+        fetch('/api/get_logs')
+            .then(res => res.json())
+            .then(data => {
+                if (window.logManager) {
+                    data.logs.filter(l => l.includes('[gym]')).forEach(l => window.logManager.append(l));
+                }
+            });
+        
+        const serverStatus = "{{ 'true' if active else 'false' }}"; 
+        window.updateGymUI(serverStatus === 'true');
+        
+        if (serverStatus === 'true') {
+            startCounterUpdate();
+        }
+        
+        window.registerHotkeyInput('hotkey-auto-e');
+        window.registerHotkeyInput('hotkey-food');
+    };
+
+    window.initGymPage();
+})();
+</script>
+{% endblock %}

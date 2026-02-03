@@ -1,0 +1,104 @@
+﻿{% extends "layout.html" %}
+{% block content %}
+<div class="card" style="position: relative;">
+    {% if not vgamepad_available %}
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background: rgba(0, 0, 0, 0.5); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px;">
+        <div style="background: rgba(30, 30, 46, 0.95); padding: 40px; border-radius: 16px; text-align: center; max-width: 500px; border: 2px solid rgba(137, 180, 250, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);">
+            <div style="font-size: 64px; margin-bottom: 20px;">🎮</div>
+            <h2 style="color: #89b4fa; margin-bottom: 15px; font-size: 24px;">Драйвер не установлен</h2>
+            <p style="color: #cdd6f4; margin-bottom: 25px; line-height: 1.6;">
+                Для работы Anti-AFK необходимо установить драйвер <strong>ViGEmBus</strong>.<br>
+                Этот драйвер позволяет эмулировать виртуальный геймпад.
+            </p>
+            <a href="https://github.com/ViGEm/ViGEmBus/releases/latest" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #89b4fa 0%, #74c7ec 100%); color: #1e1e2e; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(137, 180, 250, 0.3);">
+                📥 Скачать ViGEmBus Driver
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
+    <h2>⚙️ Anti-AFK</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Автоматически имитирует активность пользователя, чтобы избежать выхода по бездействию.
+    </div>
+    <div class="settings-group">
+        <div class="input-group">
+            <label>Мин. зажатие: <span id="min_d_v">{{settings.min_delay}}</span>s</label>
+            <input type="range" id="min_delay" min="0.5" max="5" step="0.1" value="{{settings.min_delay}}" oninput="document.getElementById('min_d_v').innerText=this.value">
+        </div>
+        <div class="input-group">
+            <label>Макс. зажатие: <span id="max_d_v">{{settings.max_delay}}</span>s</label>
+            <input type="range" id="max_delay" min="0.5" max="5" step="0.1" value="{{settings.max_delay}}" oninput="document.getElementById('max_d_v').innerText=this.value">
+        </div>
+
+        <div class="input-group">
+            <label>Мин. пауза: <span id="min_p_v">{{settings.min_pause}}</span>s</label>
+            <input type="range" id="min_pause" min="1" max="30" value="{{settings.min_pause}}" oninput="document.getElementById('min_p_v').innerText=this.value">
+        </div>
+        <div class="input-group">
+            <label>Макс. пауза: <span id="max_p_v">{{settings.max_pause}}</span>s</label>
+            <input type="range" id="max_pause" min="1" max="30" value="{{settings.max_pause}}" oninput="document.getElementById('max_p_v').innerText=this.value">
+        </div>
+
+        <button class="button" id="afk-btn" onclick="toggleAntiAFK()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const btn = document.getElementById('afk-btn');
+    window.updatePageUI = function(active) {
+        window.isAfkActive = active;
+        if (!btn) return;
+        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
+        btn.style.background = active ? '#ef4444' : '#10b981';
+    };
+
+    window.toggleAntiAFK = async function() {
+        const settings = {
+            min_delay: parseFloat(document.getElementById('min_delay').value) || 0.5,
+            max_delay: parseFloat(document.getElementById('max_delay').value) || 1.0,
+            min_pause: parseFloat(document.getElementById('min_pause').value) || 1.0,
+            max_pause: parseFloat(document.getElementById('max_pause').value) || 5.0
+        };
+
+        try {
+            const res = await fetch('/api/antiafk/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    active: !window.isAfkActive,
+                    settings: settings
+                })
+            });
+            const data = await res.json();
+            window.updatePageUI(data.active);
+        } catch (err) {
+            console.error("Ошибка Anti-AFK:", err);
+        }
+    };
+
+    const serverStatus = "{{ 'true' if active else 'false' }}"; 
+    window.updatePageUI(serverStatus === 'true');
+
+    fetch('/api/get_logs')
+        .then(res => res.json())
+        .then(data => {
+            if (window.logManager) {
+                data.logs.filter(l => l.includes('[antiafk]')).forEach(l => window.logManager.append(l));
+            }
+        });
+})();
+</script>
+{% endblock %}
