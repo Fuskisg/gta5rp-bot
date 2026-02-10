@@ -9,6 +9,7 @@ from .cooking import cooking_bp
 from .gym import gym_bp
 from .stroyka import stroyka_bp
 from .keybinds import keybinds_bp
+from .cow import cow_bp
 from core.api import api
 
 pages_bp = Blueprint('pages', __name__, template_folder='templates', static_folder='static')
@@ -23,3 +24,4 @@ pages_bp.register_blueprint(cooking_bp)
 pages_bp.register_blueprint(gym_bp)
 pages_bp.register_blueprint(stroyka_bp)
 pages_bp.register_blueprint(keybinds_bp)
+pages_bp.register_blueprint(cow_bp)
