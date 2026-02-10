@@ -15,6 +15,7 @@ import pydirectinput
 
 cached_online = "загрузка..."
 version="4.0"
+cached_update = {"needs_update": False, "remote_version": "", "local_version": version}
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 
