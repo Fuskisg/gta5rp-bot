@@ -15,7 +15,7 @@ def favicon():
 
 @api.route('/index')
 def index():
-    return render_template('index.html', version=common.version, online=common.cached_online)
+    return render_template('index.html', version=common.version, online=common.cached_online, update_info=common.cached_update)
 
 @api.route('/api/set_active_tab/<name>', methods=['POST'])
 def set_active_tab(name):
@@ -54,6 +54,22 @@ def get_logs():
 @api.route('/api/get_online')
 def get_online():
     return jsonify({"online": common.cached_online})
+
+def check_update_once():
+    try:
+        response = requests.get("https://gitflic.ru/project/dornode/bot/blob/raw?file=version.txt", timeout=5)
+        if response.status_code == 200:
+            remote_version = response.text.strip()
+            local_version = common.version.strip()
+            try:
+                needs_update = float(remote_version) > float(local_version)
+            except ValueError:
+                needs_update = False
+            common.cached_update = {"needs_update": needs_update, "remote_version": remote_version, "local_version": local_version}
+        else:
+            common.cached_update = {"needs_update": False, "error": "server_error", "remote_version": "", "local_version": common.version}
+    except Exception:
+        common.cached_update = {"needs_update": False, "error": "network_error", "remote_version": "", "local_version": common.version}
 
 def fetch_online_once():
     try:
