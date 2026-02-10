@@ -49,36 +49,22 @@
                 body: JSON.stringify({ dish: selectedDish })
             });
             const data = await res.json();
-            if (window.updateCookingUI) window.updateCookingUI(data.active);
+            if (data.active !== undefined) {
+                window.updateModuleUI('cooking-btn', data.active);
+            }
         } catch (e) {
             console.error(e);
         }
     };
 
-    window.updateCookingUI = function(active) {
-        const btn = document.getElementById('cooking-btn');
-        if (!btn) return;
-        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
-        btn.style.background = active ? '#ef4444' : '#10b981';
-    };
-
     window.updatePageUI = function(active) {
-        window.updateCookingUI(active);
+        window.updateModuleUI('cooking-btn', active);
     };
 
     window.initCookingPage = function() {
-        const container = document.getElementById('log-container');
-        if (container) container.innerHTML = '';
-        fetch('/api/get_logs')
-            .then(res => res.json())
-            .then(data => {
-                if (window.logManager) {
-                    data.logs.filter(l => l.includes('[cooking]')).forEach(l => window.logManager.append(l));
-                }
-            });
-        
+        window.loadModuleLogs('cooking');
         const serverStatus = "{{ 'true' if active else 'false' }}"; 
-        window.updateCookingUI(serverStatus === 'true');
+        window.updateModuleUI('cooking-btn', serverStatus === 'true');
     };
 
     window.initCookingPage();

@@ -46,8 +46,8 @@
                 })
             });
             const data = await res.json();
-            if (window.updateStroykaUI) {
-                window.updateStroykaUI(data.active);
+            if (data.active !== undefined) {
+                window.updateModuleUI('stroyka-btn', data.active);
                 if (data.counter !== undefined) {
                     document.getElementById('counter-value').textContent = data.counter;
                 }
@@ -57,15 +57,8 @@
         }
     };
 
-    window.updateStroykaUI = function(active) {
-        const btn = document.getElementById('stroyka-btn');
-        if (!btn) return;
-        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
-        btn.style.background = active ? '#ef4444' : '#10b981';
-    };
-
     window.updatePageUI = function(active) {
-        window.updateStroykaUI(active);
+        window.updateModuleUI('stroyka-btn', active);
     };
 
     let counterInterval;
@@ -85,24 +78,12 @@
     }
 
     window.initStroykaPage = function() {
-        const container = document.getElementById('log-container');
-        if (container) container.innerHTML = '';
-        fetch('/api/get_logs')
-            .then(res => res.json())
-            .then(data => {
-                if (window.logManager) {
-                    data.logs.filter(l => l.includes('[stroyka]')).forEach(l => window.logManager.append(l));
-                }
-            });
-        
+        window.loadModuleLogs('stroyka');
         const serverStatus = "{{ 'true' if active else 'false' }}"; 
-        window.updateStroykaUI(serverStatus === 'true');
-        
+        window.updateModuleUI('stroyka-btn', serverStatus === 'true');
         if (serverStatus === 'true') {
             startCounterUpdate();
         }
-        
-        window.registerHotkeyInput('hotkey-input');
     };
 
     window.initStroykaPage();

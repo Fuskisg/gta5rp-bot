@@ -33,11 +33,11 @@
 
         <div class="input-group">
             <label>Мин. пауза: <span id="min_p_v">{{settings.min_pause}}</span>s</label>
-            <input type="range" id="min_pause" min="1" max="30" value="{{settings.min_pause}}" oninput="document.getElementById('min_p_v').innerText=this.value">
+            <input type="range" id="min_pause" min="1" max="60" value="{{settings.min_pause}}" oninput="document.getElementById('min_p_v').innerText=this.value">
         </div>
         <div class="input-group">
             <label>Макс. пауза: <span id="max_p_v">{{settings.max_pause}}</span>s</label>
-            <input type="range" id="max_pause" min="1" max="30" value="{{settings.max_pause}}" oninput="document.getElementById('max_p_v').innerText=this.value">
+            <input type="range" id="max_pause" min="1" max="60" value="{{settings.max_pause}}" oninput="document.getElementById('max_p_v').innerText=this.value">
         </div>
 
         <button class="button" id="afk-btn" onclick="toggleAntiAFK()">
@@ -57,12 +57,9 @@
 
 <script>
 (function() {
-    const btn = document.getElementById('afk-btn');
     window.updatePageUI = function(active) {
         window.isAfkActive = active;
-        if (!btn) return;
-        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
-        btn.style.background = active ? '#ef4444' : '#10b981';
+        window.updateModuleUI('afk-btn', active);
     };
 
     window.toggleAntiAFK = async function() {
@@ -83,6 +80,9 @@
                 })
             });
             const data = await res.json();
+            if (data.active !== undefined) {
+                window.updateModuleUI('afk-btn', data.active);
+            }
             window.updatePageUI(data.active);
         } catch (err) {
             console.error("Ошибка Anti-AFK:", err);
@@ -90,15 +90,8 @@
     };
 
     const serverStatus = "{{ 'true' if active else 'false' }}"; 
-    window.updatePageUI(serverStatus === 'true');
-
-    fetch('/api/get_logs')
-        .then(res => res.json())
-        .then(data => {
-            if (window.logManager) {
-                data.logs.filter(l => l.includes('[antiafk]')).forEach(l => window.logManager.append(l));
-            }
-        });
+    window.updateModuleUI('afk-btn', serverStatus === 'true');
+    window.loadModuleLogs('antiafk');
 })();
 </script>
 {% endblock %}

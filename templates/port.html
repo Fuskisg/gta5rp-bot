@@ -39,32 +39,22 @@
                 body: JSON.stringify({ hotkey: window.getSelectedHotkey() })
             });
             const data = await res.json();
-            if (window.updatePortUI) window.updatePortUI(data.active);
+            if (data.active !== undefined) {
+                window.updateModuleUI('port-btn', data.active);
+            }
         } catch (e) {
             console.error(e);
         }
     };
 
-    window.updatePortUI = function(active) {
-        const btn = document.getElementById('port-btn');
-        if (!btn) return;
-        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
-        btn.style.background = active ? '#ef4444' : '#10b981';
+    window.updatePageUI = function(active) {
+        window.updateModuleUI('port-btn', active);
     };
 
     window.initPortPage = function() {
-        const container = document.getElementById('log-container');
-        if (container) container.innerHTML = '';
-        fetch('/api/get_logs')
-            .then(res => res.json())
-            .then(data => {
-                if (window.logManager) {
-                    data.logs.filter(l => l.includes('[port]')).forEach(l => window.logManager.append(l));
-                }
-            });
-        
+        window.loadModuleLogs('port');
         const serverStatus = "{{ 'true' if active else 'false' }}"; 
-        window.updatePortUI(serverStatus === 'true');
+        window.updateModuleUI('port-btn', serverStatus === 'true');
     };
 
     window.initPortPage();

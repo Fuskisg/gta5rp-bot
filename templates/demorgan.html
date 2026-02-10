@@ -39,12 +39,9 @@
 
 <script>
 (function() {
-    const btn = document.getElementById('demorgan-btn');
     window.updatePageUI = function(active) {
         window.isDemorganActive = active;
-        if (!btn) return;
-        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
-        btn.style.background = active ? '#ef4444' : '#10b981';
+        window.updateModuleUI('demorgan-btn', active);
     };
 
     window.toggleDemorgan = async function() {
@@ -72,14 +69,7 @@
 
     const serverStatus = "{{ 'true' if active else 'false' }}"; 
     window.updatePageUI(serverStatus === 'true');
-
-    fetch('/api/get_logs')
-        .then(res => res.json())
-        .then(data => {
-            if (window.logManager) {
-                data.logs.filter(l => l.includes('[demorgan]')).forEach(l => window.logManager.append(l));
-            }
-        });
+    window.loadModuleLogs('demorgan');
 })();
 </script>
 {% endblock %}

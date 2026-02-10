@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>🐄 Коровы</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Распознает изображения на экране и автоматически нажимает <strong>A</strong> или <strong>D</strong>.
+    </div>
+    
+    <div class="settings-group">
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">⌨️ Хоткей автонажатия E</div>
+                <div class="hotkey-description">Включает/выключает автоматическое нажатие <strong>E</strong></div>
+            </div>
+            <input type="text" id="hotkey-auto-e" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.auto_e_hotkey | default('f5', true) | upper }}">
+        </div>
+
+        <div class="input-group">
+            <label>
+                Пауза между действиями:
+                <span id="pause-value">{{ (settings.pause | default(0.07, true) * 100) | int }}</span> ms
+            </label>
+            <input type="range" id="pause-slider" min="7" max="500" value="{{ (settings.pause | default(0.07, true) * 100) | int }}" step="1">
+        </div>
+
+        <button class="button" id="cow-btn" onclick="toggleCow()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
+<script>
+(function() {
+    const pauseSlider = document.getElementById('pause-slider');
+    const pauseValue = document.getElementById('pause-value');
+    
+    if (pauseSlider && pauseValue) {
+        pauseSlider.addEventListener('input', function() {
+            pauseValue.textContent = this.value;
+        });
+    }
+
+    window.toggleCow = async function() {
+        const autoEHotkey = document.getElementById('hotkey-auto-e');
+        const pauseSlider = document.getElementById('pause-slider');
+        
+        try {
+            const res = await fetch('/api/cow/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    auto_e_hotkey: autoEHotkey ? autoEHotkey.value.toLowerCase() : 'f5',
+                    pause: pauseSlider ? (parseInt(pauseSlider.value) / 100.0) : 0.07
+                })
+            });
+            const data = await res.json();
+            if (data.active !== undefined) {
+                window.updateModuleUI('cow-btn', data.active);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    window.updatePageUI = function(active) {
+        window.updateModuleUI('cow-btn', active);
+    };
+
+    window.initCowPage = function() {
+        window.loadModuleLogs('cow');
+        const serverStatus = "{{ 'true' if active else 'false' }}"; 
+        window.updateModuleUI('cow-btn', serverStatus === 'true');
+    };
+    window.initCowPage();
+})();
+</script>
+{% endblock %}

@@ -1,4 +1,44 @@
 {% extends "layout.html" %}
+
+{% block update_overlay %}
+{% if update_info and update_info.needs_update %}
+<div id="update-overlay" style="display:none;">
+    <div class="update-modal">
+        <div class="update-icon">🔄</div>
+        <h2 class="update-title">Доступно обновление!</h2>
+        <p class="update-text">Вышла новая версия <span>{{ update_info.remote_version }}</span></p>
+        <p class="update-subtext">Ваша версия: <span>{{ update_info.local_version }}</span></p>
+        <a href="https://gitflic.ru/project/dornode/bot/release" target="_blank" class="update-download-btn">⬇️ Скачать обновление</a>
+        <button class="update-close-btn" onclick="closeUpdateOverlay()">Закрыть</button>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if update_info and update_info.needs_update %}
+<script>
+    (function() {
+        if (sessionStorage.getItem('update_dismissed')) return;
+        document.getElementById('update-overlay').style.display = 'flex';
+        document.querySelector('.app-content').classList.add('blurred');
+        document.querySelector('.titlebar').classList.add('blurred');
+        var pjs = document.getElementById('particles-js');
+        if (pjs) pjs.classList.add('blurred');
+    })();
+
+    function closeUpdateOverlay() {
+        sessionStorage.setItem('update_dismissed', '1');
+        document.getElementById('update-overlay').style.display = 'none';
+        document.querySelector('.app-content').classList.remove('blurred');
+        document.querySelector('.titlebar').classList.remove('blurred');
+        var pjs = document.getElementById('particles-js');
+        if (pjs) pjs.classList.remove('blurred');
+    }
+</script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <h2>🏠 Главная</h2>
@@ -17,7 +57,7 @@
         </div>
         <p>📁 Перейдите в меню слева и выберите модуль — и вперёд к доминации!</p>
     </div>
-    <div class="warning-box">
+    <div class="warning-box" style="font-size: 13px;">
         ⚠️ Внимание: использование может нарушать правила сервера. Играйте умно!
     </div>
     <div class="bottom-info">

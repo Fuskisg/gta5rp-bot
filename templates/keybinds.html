@@ -72,6 +72,39 @@
         </div>
     </div>
     </div>
+
+    <div id="confirm-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;padding: 0;">
+            <div class="modal-header">
+                <h3 id="confirm-title">⚠️ Подтверждение</h3>
+            </div>
+            
+            <div class="modal-body">
+                <p id="confirm-message" style="text-align: center; font-size: 15px; margin: 20px 0;"></p>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeConfirmModal(false)">Отмена</button>
+                <button class="btn-save" style="background: var(--danger);" onclick="closeConfirmModal(true)">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="alert-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;padding: 0;">
+            <div class="modal-header">
+                <h3 id="alert-title">ℹ️ Внимание</h3>
+            </div>
+            
+            <div class="modal-body">
+                <p id="alert-message" style="text-align: center; font-size: 15px; margin: 20px 0;"></p>
+            </div>
+            
+            <div class="modal-footer" style="justify-content: center;">
+                <button class="btn-save" onclick="closeAlertModal()">ОК</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -81,6 +114,42 @@
     var tempBind = null;
     var bindIdCounter = (savedBinds && savedBinds.length > 0) ? Math.max(...savedBinds.map(b => b.id || 0)) + 1 : 1;
     var activeBinds = new Set();
+    var confirmResolve = null;
+    var alertResolve = null;
+
+    window.showConfirm = function(message, title) {
+        return new Promise(function(resolve) {
+            confirmResolve = resolve;
+            document.getElementById('confirm-title').textContent = title || '⚠️ Подтверждение';
+            document.getElementById('confirm-message').textContent = message;
+            document.getElementById('confirm-modal').style.display = 'flex';
+        });
+    };
+
+    window.closeConfirmModal = function(result) {
+        document.getElementById('confirm-modal').style.display = 'none';
+        if (confirmResolve) {
+            confirmResolve(result);
+            confirmResolve = null;
+        }
+    };
+
+    window.showAlert = function(message, title) {
+        return new Promise(function(resolve) {
+            alertResolve = resolve;
+            document.getElementById('alert-title').textContent = title || 'ℹ️ Внимание';
+            document.getElementById('alert-message').textContent = message;
+            document.getElementById('alert-modal').style.display = 'flex';
+        });
+    };
+
+    window.closeAlertModal = function() {
+        document.getElementById('alert-modal').style.display = 'none';
+        if (alertResolve) {
+            alertResolve();
+            alertResolve = null;
+        }
+    };
 
     var availableKeys = [
         'w', 'a', 's', 'd', 'q', 'e', 'r', 'f', 'g', 'h',
@@ -206,12 +275,12 @@
         tempBind.hotkey = document.getElementById('bind-hotkey').value;
         
         if (!tempBind.name) {
-            alert('Введите название бинда');
+            showAlert('Введите название бинда');
             return;
         }
         
         if (!tempBind.hotkey) {
-            alert('Выберите хоткей');
+            showAlert('Выберите хоткей');
             return;
         }
         
@@ -219,12 +288,12 @@
             return b.id !== tempBind.id && b.hotkey === tempBind.hotkey;
         });
         if (duplicate) {
-            alert('Хоткей ' + tempBind.hotkey.toUpperCase() + ' уже используется в бинде "' + duplicate.name + '"');
+            showAlert('Хоткей ' + tempBind.hotkey.toUpperCase() + ' уже используется в бинде "' + duplicate.name + '"');
             return;
         }
         
         if (tempBind.keys.length === 0) {
-            alert('Выберите хотя бы одну клавишу для зажатия');
+            showAlert('Выберите хотя бы одну клавишу для зажатия');
             return;
         }
         
@@ -250,16 +319,17 @@
                 closeModal();
                 renderBinds();
             } else {
-                alert('Ошибка сохранения');
+                showAlert('Ошибка сохранения', '❌ Ошибка');
             }
         } catch (err) {
             console.error("Ошибка сохранения:", err);
-            alert('❌ Ошибка сохранения бинда');
+            showAlert('Ошибка сохранения бинда', '❌ Ошибка');
         }
     };
 
     window.deleteBind = async function(id) {
-        if (!confirm('Удалить этот бинд?')) return;
+        var confirmed = await showConfirm('Вы уверены, что хотите удалить этот бинд?', '🗑️ Удаление бинда');
+        if (!confirmed) return;
         
         savedBinds = savedBinds.filter(function(b) { return b.id !== id; });
         
@@ -362,14 +432,7 @@
             renderBinds();
         });
 
-    fetch('/api/get_logs')
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            if (window.logManager) {
-                data.logs.filter(function(l) { return l.includes('[keybinds]'); })
-                    .forEach(function(l) { window.logManager.append(l); });
-            }
-        });
+    window.loadModuleLogs('keybinds');
 })();
 </script>
 {% endblock %}

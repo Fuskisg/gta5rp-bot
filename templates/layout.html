@@ -7,6 +7,7 @@
     <title>BOT [GTA5RP]</title>
 </head>
 <body class="sidebar-closed">
+    {% block update_overlay %}{% endblock %}
     <div class="titlebar">
         <div class="titlebar-drag-region">
             <div class="titlebar-title">BOT [GTA5RP]</div>
@@ -63,7 +64,7 @@
                         <span class="icon">⚓</span>
                         <span class="text">Порт</span>
                     </a>
-                    <a href="/cow" class="nav-item disabled" data-tooltip="Коровы">
+                    <a href="/cow" class="nav-item" data-tooltip="Коровы">
                         <span class="icon">🐄</span>
                         <span class="text">Коровы</span>
                     </a>
@@ -125,6 +126,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/drag.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
     <script src="{{ url_for('static', filename='js/particles.min.js') }}"></script>
     <script>
         window.initParticles = function(backgroundType) {
@@ -153,6 +155,11 @@
                     { src: "static/icons/chrome4.ico", rotation: 0 },
                     { src: "static/icons/chrome5.ico", rotation: 0 },
                     { src: "static/icons/chrome6.ico", rotation: 0 }
+                ];
+            } else if (bg === 'line') {
+                imageSrc = [
+                    { src: "static/icons/line1.ico", rotation: 0 },
+                    { src: "static/icons/line2.ico", rotation: 0 }
                 ];
             }
             

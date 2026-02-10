@@ -82,8 +82,8 @@
                 })
             });
             const data = await res.json();
-            if (window.updateGymUI) {
-                window.updateGymUI(data.active);
+            if (data.active !== undefined) {
+                window.updateModuleUI('gym-btn', data.active);
                 if (data.counter !== undefined) {
                     document.getElementById('counter-value').textContent = data.counter;
                 }
@@ -93,18 +93,10 @@
         }
     };
 
-    window.updateGymUI = function(active) {
-        const btn = document.getElementById('gym-btn');
-        if (!btn) return;
-        btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
-        btn.style.background = active ? '#ef4444' : '#10b981';
-    };
-
     window.updatePageUI = function(active) {
-        window.updateGymUI(active);
+        window.updateModuleUI('gym-btn', active);
     };
 
-    // Обновление счетчика каждую секунду
     let counterInterval;
     function startCounterUpdate() {
         if (counterInterval) clearInterval(counterInterval);
@@ -122,25 +114,12 @@
     }
 
     window.initGymPage = function() {
-        const container = document.getElementById('log-container');
-        if (container) container.innerHTML = '';
-        fetch('/api/get_logs')
-            .then(res => res.json())
-            .then(data => {
-                if (window.logManager) {
-                    data.logs.filter(l => l.includes('[gym]')).forEach(l => window.logManager.append(l));
-                }
-            });
-        
+        window.loadModuleLogs('gym');
         const serverStatus = "{{ 'true' if active else 'false' }}"; 
-        window.updateGymUI(serverStatus === 'true');
-        
+        window.updateModuleUI('gym-btn', serverStatus === 'true');
         if (serverStatus === 'true') {
             startCounterUpdate();
         }
-        
-        window.registerHotkeyInput('hotkey-auto-e');
-        window.registerHotkeyInput('hotkey-food');
     };
 
     window.initGymPage();
