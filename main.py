@@ -5,7 +5,7 @@ from core.common import hotkey_manager, state, get_settings
 import webview 
 import socket
 import time
-from core.api import fetch_online_once
+from core.api import fetch_online_once, check_update_once
 from pages import pages_bp
 from pages.antiafk import VGAMEPAD_AVAILABLE
 import ctypes
@@ -100,10 +100,11 @@ if __name__ == '__main__':
 
     threading.Thread(target=start_flask, daemon=True).start()
     threading.Thread(target=fetch_online_once, daemon=True).start()
+    threading.Thread(target=check_update_once, daemon=True).start()
     if wait_for_port(5000):
         win_width, win_height = 850, 900
         x, y = get_center_position(win_width, win_height)
-        window = webview.create_window('Steam Client WebHelper', 'http://127.0.0.1:5000/index', width=win_width, height=win_height, x=x, y=y, frameless=True, easy_drag=False, js_api=window_api)
+        window = webview.create_window('Steam Client WebHelper', 'http://127.0.0.1:5000/index', width=win_width, height=win_height, x=x, y=y, frameless=True, easy_drag=False, js_api=window_api, background_color='#000000')
         webview.start(debug=False)
     
     listener.stop()
