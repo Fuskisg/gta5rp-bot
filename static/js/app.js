@@ -25,6 +25,30 @@ window.logManager = {
     }
 };
 
+window.updateModuleUI = function(btnId, active) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.innerText = active ? 'ОСТАНОВИТЬ' : 'ЗАПУСТИТЬ';
+    btn.classList.toggle('running', active);
+    btn.style.background = '';
+};
+
+window.loadModuleLogs = function(moduleName) {
+    const container = document.getElementById('log-container');
+    if (container) container.innerHTML = '';
+    
+    fetch('/api/get_logs')
+        .then(res => res.json())
+        .then(data => {
+            if (window.logManager && data.logs) {
+                data.logs
+                    .filter(l => l.includes(`[${moduleName}]`))
+                    .forEach(l => window.logManager.append(l));
+            }
+        })
+        .catch(err => console.error('Ошибка загрузки логов:', err));
+};
+
 function loadPageContent(url) {
     const container = document.querySelector('.container');
     if (!container) return;
