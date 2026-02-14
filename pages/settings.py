@@ -32,3 +32,8 @@ def save_settings_api():
         return jsonify({"status": "ok"})
     else:
         return jsonify({"status": "error", "message": "Failed to save"}), 500
+
+@settings_bp.route('/api/settings/get', methods=['GET'])
+def get_settings_api():
+    settings = get_settings("settings")
+    return jsonify(settings)
