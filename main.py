@@ -1,7 +1,7 @@
 import threading
-from flask import Flask, jsonify, request
+from flask import Flask
 from pynput import keyboard
-from core.common import hotkey_manager, state, get_settings
+from core.common import hotkey_manager, get_settings
 import webview 
 import socket
 import time
