@@ -56,7 +56,7 @@ def toggle_auto_e():
     status = "включено" if auto_e_enabled else "выключено"
     add_log(f"[⌨️] Автонажатие E {status}", page="gym")
 
-def gym_worker(pause_delay: float, key_food: str):
+def gym_worker(pause_delay: float, key_food: str, auto_e_pause: float = 5.0):
     global auto_e_enabled
     add_log(">>> Модуль Качалка запущен", page="gym")
     data = state["modules"]["gym"]
@@ -99,7 +99,7 @@ def gym_worker(pause_delay: float, key_food: str):
                         add_log(f"🍔 Нажата '{key_food}' (еда)", page="gym")
                     
                     if auto_e_enabled:
-                        if now - last_e_time >= 5.0:
+                        if now - last_e_time >= auto_e_pause:
                             press('e')
                             last_e_time = now
                             add_log("⚙️ Нажата 'E' (авто)", page="gym")
@@ -131,8 +131,9 @@ def toggle_gym():
         
         pause_delay = data["settings"].get("food_pause", 1800)
         key_food = data["settings"].get("food_key", "k")
+        auto_e_pause = data["settings"].get("auto_e_pause", 5.0)
         
-        threading.Thread(target=gym_worker, args=(pause_delay, key_food), daemon=True).start()
+        threading.Thread(target=gym_worker, args=(pause_delay, key_food, auto_e_pause), daemon=True).start()
     else:
         data["active"] = False
         auto_e_enabled = False
@@ -160,6 +161,7 @@ def api_toggle_gym():
     settings["auto_e_hotkey"] = data.get('auto_e_hotkey', 'f5')
     settings["food_key"] = data.get('food_key', 'k')
     settings["food_pause"] = int(data.get('food_pause', 1800))
+    settings["auto_e_pause"] = float(data.get('auto_e_pause', 5.0))
     update_settings("gym", settings)
     
     toggle_gym()
