@@ -73,9 +73,6 @@ def cow_worker(pause_delay: float):
         data["active"] = False
         return
     
-    min_press_interval = 0
-    last_press_time = 0.0
-    
     try:
         with mss.mss() as sct:
             while data["active"] and not stop_event.is_set():
@@ -86,29 +83,24 @@ def cow_worker(pause_delay: float):
                 for key, template in templates.items():
                     res = cv2.matchTemplate(frame_rgb, template, cv2.TM_CCOEFF_NORMED)
                     _, max_val, _, _ = cv2.minMaxLoc(res)
-                    if max_val >= 0.91:
+                    if max_val >= 0.92:
                         scores[key] = max_val
                 
                 found = bool(scores)
                 
                 if found:
-                    now = time.time()
-                    if now - last_press_time >= min_press_interval:
-                        if scores.get("1", -1) >= scores.get("2", -1):
-                            press('a')
-                            add_log("◀ Нажата 'a'", page="cow")
-                        else:
-                            press('d')
-                            add_log("▶ Нажата 'd'", page="cow")
-                        
-                        last_press_time = now
+                    if scores.get("1", -1) >= scores.get("2", -1):
+                        press('a')
+                        add_log("◀ Нажата 'a'", page="cow")
+                    else:
+                        press('d')
+                        add_log("▶ Нажата 'd'", page="cow")
                 
                 elif auto_e_enabled:
                     press('e')
                 
-                if pause_delay > 0:
-                    if stop_event.wait(pause_delay):
-                        break
+                if stop_event.wait(pause_delay):
+                    break
     
     except Exception as exc:
         add_log(f"[Ошибка потока] {str(exc)}", level="ERROR", page="cow")
