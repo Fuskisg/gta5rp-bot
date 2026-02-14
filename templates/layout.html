@@ -132,13 +132,13 @@
         window.initParticles = function(backgroundType) {
             const bg = backgroundType || window.UI_CONFIG?.background || 'bot';
             
+            if (window.particlesJS && window.particlesJS.destroy) {
+                window.particlesJS.destroy();
+            }
+            
             const container = document.getElementById('particles-js');
             if (container) {
                 container.innerHTML = '';
-            }
-            
-            if (window.pJSDom && window.pJSDom.length > 0) {
-                window.pJSDom = [];
             }
             
             let imageSrc = "static/icons/" + bg + ".ico";
