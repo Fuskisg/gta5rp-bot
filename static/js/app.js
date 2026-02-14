@@ -49,6 +49,21 @@ window.loadModuleLogs = function(moduleName) {
         .catch(err => console.error('Ошибка загрузки логов:', err));
 };
 
+function refreshUIConfig() {
+    return fetch('/api/settings/get')
+        .then(res => res.json())
+        .then(settings => {
+            window.UI_CONFIG = {
+                hoverEnabled: settings.switch_hover,
+                clickEnabled: settings.switch_click,
+                hoverVol: settings.volume_hover / 100,
+                clickVol: settings.volume_click / 100,
+                background: settings.background || 'bot'
+            };
+        })
+        .catch(err => console.error('Ошибка обновления UI_CONFIG:', err));
+}
+
 function loadPageContent(url) {
     const container = document.querySelector('.container');
     if (!container) return;
@@ -70,10 +85,11 @@ function loadPageContent(url) {
                 initSliders();
                 initSounds();
                 initTooltips();
+                refreshUIConfig();
                 container.classList.remove('loading');
                 
                 requestAnimationFrame(() => {
-                    newDoc.querySelectorAll('script').forEach((oldScript, index) => {
+                    newContent.querySelectorAll('script').forEach((oldScript, index) => {
                         setTimeout(() => {
                             const newScript = document.createElement('script');
                             newScript.classList.add('dynamic-script');
@@ -127,9 +143,16 @@ function updateActiveLink() {
     });
 }
 
-function quickPlay(type) {
+function quickPlay(type, event) {
     const config = window.UI_CONFIG;
     if (!config) return;
+
+    if (event && event.target) {
+        const toggle = event.target.closest('.toggle-switch');
+        if (toggle && (toggle.id === 'switch-hover' || toggle.id === 'switch-click')) {
+            return;
+        }
+    }
 
     let audioId = (type === 'hover') ? 'hover-sound' : 'click-sound';
     let isEnabled = (type === 'hover') ? config.hoverEnabled : config.clickEnabled;
@@ -145,8 +168,8 @@ function quickPlay(type) {
     }
 }
 
-const handleHover = () => quickPlay('hover');
-const handleClick = () => quickPlay('click');
+const handleHover = (e) => quickPlay('hover', e);
+const handleClick = (e) => quickPlay('click', e);
 
 function initSounds() {
     const soundElements = document.querySelectorAll('.module-switch, .btn-action, .nav-links a, button, .slider');
