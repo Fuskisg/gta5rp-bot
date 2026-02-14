@@ -74,19 +74,30 @@
     let localSettings = JSON.parse('{{ settings | tojson | safe }}');
     const card = document.querySelector('.card');
 
+    const updateUIConfig = () => {
+        if (window.UI_CONFIG) {
+            window.UI_CONFIG.hoverEnabled = localSettings.switch_hover;
+            window.UI_CONFIG.clickEnabled = localSettings.switch_click;
+            window.UI_CONFIG.hoverVol = localSettings.volume_hover / 100;
+            window.UI_CONFIG.clickVol = localSettings.volume_click / 100;
+            window.UI_CONFIG.background = localSettings.background;
+        }
+    };
+
     card.addEventListener('click', (e) => {
         const sw = e.target.closest('.toggle-switch');
         if (!sw) return;
 
         const key = sw.id.replace('switch-', 'switch_');
         localSettings[key] = !localSettings[key];
+        updateUIConfig();
 
         sw.classList.toggle('active', localSettings[key]);
         const containerId = sw.id.includes('hover') ? 'hover-slider-container' : 'click-slider-container';
         document.getElementById(containerId).classList.toggle('hidden', !localSettings[key]);
 
         saveToServer();
-    });
+    }, true);
 
     card.addEventListener('input', (e) => {
         if (!e.target.classList.contains('slider')) return;
@@ -98,20 +109,15 @@
 
         localSettings[key] = val;
         document.getElementById(displayId).textContent = val;
-    });
+        updateUIConfig();
+    }, true);
 
     card.addEventListener('change', (e) => {
         if (e.target.classList.contains('slider')) saveToServer();
     })
 
     const saveToServer = () => {
-        if (window.UI_CONFIG) {
-            window.UI_CONFIG.hoverEnabled = localSettings.switch_hover;
-            window.UI_CONFIG.clickEnabled = localSettings.switch_click;
-            window.UI_CONFIG.hoverVol = localSettings.volume_hover / 100;
-            window.UI_CONFIG.clickVol = localSettings.volume_click / 100;
-            window.UI_CONFIG.background = localSettings.background;
-        }
+        updateUIConfig();
 
         fetch('/api/settings/save', {
             method: 'POST',
