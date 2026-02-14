@@ -229,7 +229,6 @@ class CommonLogger:
 
     @staticmethod
     def safe_locate(path: str, confidence: float = 0.95) -> Any:
-        """Безопасный поиск изображения на экране"""
         try:
             return pyautogui.locateOnScreen(path, confidence=confidence)
         except ImageNotFoundException:
