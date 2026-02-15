@@ -74,6 +74,10 @@ state = {
         "demorgan": ModuleState(
             active=False,
             settings={"tokar_pause": 65, "shveika_pause": 85, "shveika_exe": 0.1}
+        ),
+        "taxi": ModuleState(
+            active=False,
+            settings={"hotkey_taxi": "f5"}
         )
     },
     "logs": [],
