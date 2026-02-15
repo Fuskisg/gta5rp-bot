@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+    <h2>🚕 Такси</h2>
+    <div class="info-box">
+        ℹ️ <strong>Функция:</strong> Автоматический поиск заказов в КПК такси. При нахождении вызова срабатывает звуковое оповещение.
+    </div>
+    <div class="settings-group">
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">⌨️ Хоткей для автобега</div>
+                <div class="hotkey-description">Включает/выключает автоматическое нажатие <strong>Shift+W</strong></div>
+            </div>
+            <input type="text" id="hotkey-input" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.walker_hotkey | default('f5', true) | upper }}">
+        </div>
+
+        <button class="button" id="taxi-btn" onclick="toggletaxi()">
+            {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
+        </button>
+    </div>
+    <h2>📋 Логи</h2>
+    <div style="position: relative;"> 
+        <div id="log-container"></div>
+        <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
+<script>
+(function() {
+    window.toggletaxi = async function() {
+        try {
+            const res = await fetch('/api/taxi/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ hotkey: window.getSelectedHotkey() })
+            });
+            const data = await res.json();
+            if (data.active !== undefined) {
+                window.updateModuleUI('taxi-btn', data.active);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    window.updatePageUI = function(active) {
+        window.updateModuleUI('taxi-btn', active);
+    };
+
+    window.initTaxiPage = function() {
+        window.loadModuleLogs('taxi');
+        const serverStatus = "{{ 'true' if active else 'false' }}"; 
+        window.updateModuleUI('taxi-btn', serverStatus === 'true');
+    };
+
+    window.initTaxiPage();
+})();
+</script>
+{% endblock %}
