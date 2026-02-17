@@ -29,7 +29,7 @@
 1. **Клонируйте репозиторий:**
    ```bash
    git clone https://gitflic.ru/project/dornode/bot.git
-   cd botnew
+   cd bot
    ```
 
 2. **Установите зависимости:**
