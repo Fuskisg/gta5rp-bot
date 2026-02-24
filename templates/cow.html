@@ -15,12 +15,17 @@
             <input type="text" id="hotkey-auto-e" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.auto_e_hotkey | default('f5', true) | upper }}">
         </div>
 
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">⌨️ Хоткей для автобега</div>
+                <div class="hotkey-description">Включает/выключает автоматическое нажатие <strong>Shift+W</strong></div>
+            </div>
+            <input type="text" id="hotkey-walker" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.walker_hotkey | default('f6', true) | upper }}">
+        </div>
+
         <div class="input-group">
-            <label>
-                Пауза между действиями:
-                <span id="pause-value">{{ (settings.pause | default(0.07, true) * 100) | int }}</span> ms
-            </label>
-            <input type="range" id="pause-slider" min="5" max="15" value="{{ (settings.pause | default(0.07, true) * 100) | int }}" step="1">
+            <label>Пауза действий<span id="pause-value">{{ (settings.pause | default(0.15, true) * 100) | int }}</span> ms</label>
+            <input type="range" id="pause-slider" min="1" max="150" value="{{ (settings.pause | default(0.15, true) * 100) | int }}" step="1">
         </div>
 
         <button class="button" id="cow-btn" onclick="toggleCow()">
@@ -30,7 +35,7 @@
 
     <h2>📋 Логи</h2>
     <div style="position: relative;"> 
-        <div id="log-container"></div>
+        <div id="log-container" style="height: 130px;"></div>
         <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
@@ -42,26 +47,24 @@
 <script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
 <script>
 (function() {
+    const autoEHotkey = document.getElementById('hotkey-auto-e');
+    const walkerHotkey = document.getElementById('hotkey-walker');
     const pauseSlider = document.getElementById('pause-slider');
     const pauseValue = document.getElementById('pause-value');
-    
     if (pauseSlider && pauseValue) {
         pauseSlider.addEventListener('input', function() {
             pauseValue.textContent = this.value;
         });
     }
-
     window.toggleCow = async function() {
-        const autoEHotkey = document.getElementById('hotkey-auto-e');
-        const pauseSlider = document.getElementById('pause-slider');
-        
         try {
             const res = await fetch('/api/cow/toggle', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     auto_e_hotkey: autoEHotkey ? autoEHotkey.value.toLowerCase() : 'f5',
-                    pause: pauseSlider ? (parseInt(pauseSlider.value) / 100.0) : 0.07
+                    walker_hotkey: walkerHotkey ? walkerHotkey.value.toLowerCase() : 'f6',
+                    pause: pauseSlider ? (parseInt(pauseSlider.value) / 100.0) : 0.15
                 })
             });
             const data = await res.json();
