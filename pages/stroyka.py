@@ -1,24 +1,10 @@
-import threading
-import time
 import os
 from flask import render_template, jsonify, Blueprint, request
-from core.common import (
-    state, add_log, press,
-    CommonLogger, AutoHold, hotkey_manager,
-    get_settings, update_settings
-)
+from core.common import (state, add_log, press,CommonLogger,update_settings, DetectionCache,init_module, WalkerModule)
 
 stroyka_bp = Blueprint('stroyka', __name__)
-stop_event = threading.Event()
-walker = AutoHold(keys=["shift", "w"], page="stroyka")
-last_registered_hotkey = None
-toggle_requested = False
-
-state["modules"]["stroyka"] = {
-    "active": False,
-    "settings": get_settings("stroyka"),
-    "counter": 0
-}
+module = WalkerModule("stroyka")
+init_module("stroyka", extra_fields={"counter": 0})
 
 ASSETS_PATH = os.path.join(os.path.dirname(__file__), '..', 'static', 'assets', 'stroyka')
 IMG_KEY_MAPPING = {
@@ -28,105 +14,63 @@ IMG_KEY_MAPPING = {
     "image4.png": {"en": "h"},
 }
 
-def safe_locate(path: str, detection_cache: dict, ttl: float = 0.1):
-    now = time.time()
-    cached = detection_cache.get(path)
-    if cached:
-        result, ts = cached
-        if now - ts < ttl:
-            return result
-    
-    result = CommonLogger.safe_locate(path, 0.90)
-    
-    if result is not None:
-        detection_cache[path] = (result, now)
-    
-    return result
-
-def handle_visible_image(path: str, keys: dict, visible_state: dict, data: dict):
+def handle_visible_image(path: str, keys: dict, visible_state: dict, data: dict, detection_cache: DetectionCache):
     if not visible_state[path]:
         visible_state[path] = True
         data["counter"] += 1
         add_log(f"[✓] Найдено → спам '{keys['en']}'", page="stroyka")
-    
+
     press_count = 0
     while data["active"] and press_count < 60:
         press(keys['en'])
         press_count += 1
         if press_count % 5 == 0:
-            stop_event.wait(0.001)
-    
-    if not CommonLogger.safe_locate(path, 0.90):
+            module.stop_event.wait(0.001)
+
+    if not detection_cache.get(path):
         visible_state[path] = False
 
 def stroyka_worker():
-    global toggle_requested
-    
     add_log("Поиск начат.", page="stroyka")
     data = state["modules"]["stroyka"]
     data["counter"] = 0
-    
+
     img_key = {}
     for img_name, keys in IMG_KEY_MAPPING.items():
         img_path = os.path.join(ASSETS_PATH, img_name)
         img_key[img_path] = keys
-    
+
     visible_state = {path: False for path in img_key}
-    detection_cache = {}
-    
+    detection_cache = DetectionCache(ttl=0.1)
+
     try:
         while data["active"]:
-            if not CommonLogger.wait_for_rage(page="stroyka", auto_move=walker, stop_event=stop_event):
+            if not CommonLogger.wait_for_rage(page="stroyka", auto_move=module.walker, stop_event=module.stop_event):
                 continue
-            
+
             for path, keys in img_key.items():
-                if safe_locate(path, detection_cache):
-                    handle_visible_image(path, keys, visible_state, data)
+                result = CommonLogger.safe_locate(path, 0.90)
+                if result is not None:
+                    detection_cache.set(path, result)
+                    handle_visible_image(path, keys, visible_state, data, detection_cache)
                     break
-            
-            stop_event.wait(0.01)
-    
+
+            module.stop_event.wait(0.01)
+
     except Exception as e:
         add_log(f"[Критическая ошибка]\n{str(e)}", level="ERROR", page="stroyka")
     finally:
-        walker.force_disable()
-        data["active"] = False
-        add_log(">>> Модуль Стройка остановлен", page="stroyka")
+        module.cleanup()
 
 def toggle_stroyka():
-    global last_registered_hotkey
-    data = state["modules"]["stroyka"]
-    
-    if not data["active"]:
-        data["active"] = True
-        data["counter"] = 0
-        stop_event.clear()
-        
-        if last_registered_hotkey:
-            hotkey_manager.unregister(last_registered_hotkey)
-        
-        hotkey = data["settings"].get("walker_hotkey", "f5")
-        hotkey_manager.register(hotkey, walker.toggle)
-        last_registered_hotkey = hotkey
-        
-        threading.Thread(target=stroyka_worker, daemon=True).start()
-    else:
-        data["active"] = False
-        stop_event.set()
-        
-        if last_registered_hotkey:
-            hotkey_manager.unregister(last_registered_hotkey)
-            last_registered_hotkey = None
+    if not state["modules"]["stroyka"]["active"]:
+        state["modules"]["stroyka"]["counter"] = 0
+    module.toggle(stroyka_worker)
 
 @stroyka_bp.route('/stroyka')
 def render_stroyka():
     settings = state["modules"]["stroyka"]["settings"]
-    return render_template(
-        'stroyka.html',
-        active=state["modules"]["stroyka"]["active"],
-        settings=settings,
-        counter=state["modules"]["stroyka"]["counter"]
-    )
+    return render_template('stroyka.html',active=state["modules"]["stroyka"]["active"],settings=settings,counter=state["modules"]["stroyka"]["counter"])
 
 @stroyka_bp.route('/api/stroyka/toggle', methods=['POST'])
 def api_toggle_stroyka():
