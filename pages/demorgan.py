@@ -3,6 +3,7 @@ import time
 import cv2
 import numpy as np
 import mss
+import os
 import pyautogui
 from flask import render_template, jsonify, request, Blueprint
 from core.common import state, add_log, get_settings, update_settings, auto_detect_region
@@ -17,8 +18,19 @@ state["modules"]["demorgan"]["settings"] = get_settings("demorgan") or {
 }
 
 
+def play_beep():
+    try:
+        import winsound
+        wav_path = os.path.join(os.path.dirname(__file__), '..', "static", "wav", "beep.wav")
+        if os.path.exists(wav_path):
+            winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        else:
+            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+    except Exception:
+        pass
+
+
 def load_template_image(filename: str) -> np.ndarray:
-    import os
     template_path = os.path.join(os.path.dirname(__file__), f'../static/assets/{filename}')
     if os.path.exists(template_path):
         img = cv2.imread(template_path, cv2.IMREAD_COLOR)
@@ -27,27 +39,26 @@ def load_template_image(filename: str) -> np.ndarray:
         add_log(f"⚠️ Шаблон {filename} не найден", page="demorgan")
         return None
 
-class TimerThread(threading.Thread):
-    def __init__(self, seconds: int, label: str, page_name: str = "demorgan"):
-        super().__init__(daemon=True)
-        self.seconds = seconds
-        self.label = label
-        self.page_name = page_name
-        self.running = True
+def start_timer(seconds: int, label: str, page_name: str = "demorgan") -> dict:
+    cancel = {"active": True}
 
-    def run(self):
+    def _run():
         start = time.time()
-        while self.running and (time.time() - start) < self.seconds:
-            left = self.seconds - int(time.time() - start)
+        while cancel["active"] and (time.time() - start) < seconds:
+            left = seconds - int(time.time() - start)
             mins, secs = divmod(left, 60)
-            add_log(f"[⏳] {self.label}: {mins:02d}:{secs:02d}", page=self.page_name)
+            add_log(f"[timer] {label}: {mins:02d}:{secs:02d}", page=page_name)
             stop_event.wait(1)
 
-        if self.running:
-            add_log(f"[✔] {self.label} завершён!", page=self.page_name)
+        if cancel["active"]:
+            add_log(f"[✔] {label} завершён!", page=page_name)
+            play_beep()
 
-    def stop(self):
-        self.running = False
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    cancel["thread"] = t
+    return cancel
+
 
 def demorgan_worker():
     stop_event.clear()
@@ -72,15 +83,14 @@ def demorgan_worker():
             return
 
         add_log(f"[✓] Шаблоны загружены. Токарь: {tokar_template.shape}, Швейка: {shveika_templates[0].shape if shveika_templates[0] is not None else 'None'}", page="demorgan")
-
-        counter = 0
         is_tokar_found = False
         last_known_position = None
         tokar_timer_active = False
         tokar_timer_start = 0
+        tokar_processed = False
 
         def run_tokar():
-            nonlocal is_tokar_found, last_known_position, tokar_timer_active, tokar_timer_start
+            nonlocal is_tokar_found, last_known_position, tokar_timer_active, tokar_timer_start, tokar_processed
             h, w = tokar_template.shape[:2]
             last_full_scan = 0.0
             is_tracking = False
@@ -109,13 +119,17 @@ def demorgan_worker():
                                 is_tokar_found = True
                                 tokar_timer_active = True
                                 tokar_timer_start = time.time()
-                                add_log(f"[✓] Токарь найден #{counter} | ожидание {tokar_pause}s", page="demorgan")
+                                if not tokar_processed:
+                                    add_log(f"[✓] Токарь найден | ожидание {tokar_pause}с", page="demorgan")
+                                    start_timer(tokar_pause, "Токарь", page_name="demorgan")
+                                    tokar_processed = True
                                 is_tracking = True
                         else:
                             if is_tracking:
                                 is_tracking = False
                                 last_known_position = None
                                 is_tokar_found = False
+                                tokar_processed = False
                             stop_event.wait(0.02)
                     
                     except Exception as e:
@@ -123,7 +137,7 @@ def demorgan_worker():
                         stop_event.wait(0.1)
 
         def run_shveika():
-            nonlocal counter, tokar_timer_active, is_tokar_found
+            nonlocal tokar_timer_active, is_tokar_found
             last_wait_logged = 0.0
             sentinel_template = shveika_templates[0]
             
@@ -155,6 +169,7 @@ def demorgan_worker():
                             continue
 
                         add_log("[✓] Все 20 точек найдены. Начинаю клик.", page="demorgan")
+                        start_timer(shveika_pause, "Швейка", page_name="demorgan")
 
                         for i, pos in enumerate(coords):
                             if not data["active"]:
