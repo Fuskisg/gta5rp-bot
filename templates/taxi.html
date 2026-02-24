@@ -3,23 +3,24 @@
 <div class="card">
     <h2>🚕 Такси</h2>
     <div class="info-box">
-        ℹ️ <strong>Функция:</strong> Автоматический поиск заказов в КПК такси. При нахождении вызова срабатывает звуковое оповещение.
+        ℹ️ <strong>Функция:</strong> Автоматически сканирует КПК такси на наличие нового вызова. При нахождении — кликает и издаёт звуковое оповещение.
     </div>
     <div class="settings-group">
         <div class="hotkey-container">
             <div class="hotkey-info">
-                <div class="hotkey-title">⌨️ Хоткей для автобега</div>
-                <div class="hotkey-description">Включает/выключает автоматическое нажатие <strong>Shift+W</strong></div>
+                <div class="hotkey-title">⌨️ Хоткей запуска</div>
+                <div class="hotkey-description">Включает/выключает сканирование заказов такси</div>
             </div>
-            <input type="text" id="hotkey-input" class="hotkey-input" readonly placeholder="Клавиша..." value="{{ settings.walker_hotkey | default('f5', true) | upper }}">
+            <input type="text" id="hotkey-input" class="hotkey-input" readonly placeholder="Клавиша..."
+                   value="{{ settings.hotkey_taxi | default('F5', true) | upper }}">
         </div>
 
-        <button class="button" id="taxi-btn" onclick="toggletaxi()">
+        <button class="button" id="taxi-btn" onclick="toggleTaxi()">
             {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
         </button>
     </div>
     <h2>📋 Логи</h2>
-    <div style="position: relative;"> 
+    <div style="position: relative;">
         <div id="log-container"></div>
         <button onclick="sendLogsToTelegram()" class="floating-send-btn" title="Отправить в Telegram">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -31,7 +32,7 @@
 <script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
 <script>
 (function() {
-    window.toggletaxi = async function() {
+    window.toggleTaxi = async function() {
         try {
             const res = await fetch('/api/taxi/toggle', {
                 method: 'POST',
