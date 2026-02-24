@@ -4,7 +4,7 @@ import time
 import logging
 import json
 import os
-from typing import Dict, List, Callable, Any, Optional
+from typing import Dict, List, Callable, Any, Optional, Tuple
 from logging.handlers import RotatingFileHandler
 import pygetwindow as gw
 import traceback
@@ -12,9 +12,12 @@ from typing import Optional, Union, Callable, Any, Dict, List
 import pyautogui
 from pyautogui import ImageNotFoundException
 import pydirectinput
+import cv2
+import numpy as np
+import mss
 
 cached_online = "загрузка..."
-version="4.0"
+version="4.3"
 cached_update = {"needs_update": False, "remote_version": "", "local_version": version}
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
@@ -108,6 +111,9 @@ DEFAULT_CONFIG = {
     },
     "keybinds": {
         "binds": []
+    },
+    "taxi": {
+        "hotkey_taxi": "f5"
     }
 }
 
@@ -343,5 +349,115 @@ class AutoHold:
             add_log("Окно потеряно, отключаю удержание клавиш", level="WARNING", page=self.page)
             self.force_disable()
 
+class DetectionCache:
+    def __init__(self, ttl: float = 0.1):
+        self._cache: Dict[str, Tuple[Any, float]] = {}
+        self._ttl = ttl
+    
+    def get(self, path: str) -> Optional[Any]:
+        now = time.time()
+        cached = self._cache.get(path)
+        if cached:
+            result, ts = cached
+            if now - ts < self._ttl:
+                return result
+            del self._cache[path]
+        return None
+    
+    def set(self, path: str, result: Any):
+        if result is not None:
+            self._cache[path] = (result, time.time())
+    
+    def clear(self):
+        self._cache.clear()
 
+def create_daemon_thread(target: Callable, args: tuple = (), name: str = None,on_error: Optional[Callable[[Exception], None]] = None) -> threading.Thread:
+    def wrapper():
+        try:
+            target(*args)
+        except Exception as e:
+            if on_error:
+                on_error(e)
+            else:
+                logger.error(f"Ошибка в потоке {name or target.__name__}: {e}")
+    
+    thread = threading.Thread(target=wrapper, daemon=True, name=name)
+    return thread
 
+class AutoEToggle:
+    def __init__(self, page: str):
+        self.enabled = False
+        self.page = page
+        self._last_hotkey = None
+
+    def toggle(self):
+        self.enabled = not self.enabled
+        status = "включено" if self.enabled else "выключено"
+        add_log(f"[⌨️] Автонажатие E {status}", page=self.page)
+
+    def reset(self):
+        self.enabled = False
+
+    def register_hotkey(self, hotkey: str):
+        if self._last_hotkey:
+            hotkey_manager.unregister(self._last_hotkey)
+        hotkey_manager.register(hotkey, self.toggle)
+        self._last_hotkey = hotkey
+        add_log(f"[⌨️] Хоткей '{hotkey.upper()}' зарегистрирован для автонажатия E", page=self.page)
+
+    def unregister_hotkey(self):
+        if self._last_hotkey:
+            hotkey_manager.unregister(self._last_hotkey)
+            add_log(f"[⌨️] Хоткей '{self._last_hotkey.upper()}' отключен", page=self.page)
+            self._last_hotkey = None
+
+def init_module(name: str, extra_fields: dict = None) -> dict:
+    module = {
+        "active": False,
+        "settings": get_settings(name)
+    }
+    if extra_fields:
+        module.update(extra_fields)
+    state["modules"][name] = module
+    return state["modules"][name]
+
+class WalkerModule:
+    def __init__(self, module_name: str, page: str = None, walker_keys: list = None):
+        self.module_name = module_name
+        self.page = page or module_name
+        self.stop_event = threading.Event()
+        self.walker = AutoHold(keys=walker_keys or ["shift", "w"], page=self.page)
+        self._last_hotkey = None
+
+    @property
+    def data(self):
+        return state["modules"][self.module_name]
+
+    def toggle(self, worker_fn, worker_args=(), hotkey_setting="walker_hotkey", default_hotkey="f5"):
+        data = self.data
+        if not data["active"]:
+            data["active"] = True
+            self.stop_event.clear()
+
+            if self._last_hotkey:
+                hotkey_manager.unregister(self._last_hotkey)
+
+            hotkey = data["settings"].get(hotkey_setting, default_hotkey)
+            hotkey_manager.register(hotkey, self.walker.toggle)
+            self._last_hotkey = hotkey
+
+            create_daemon_thread(
+                target=worker_fn, args=worker_args,
+                name=f"{self.module_name}_worker"
+            ).start()
+        else:
+            data["active"] = False
+            self.stop_event.set()
+            if self._last_hotkey:
+                hotkey_manager.unregister(self._last_hotkey)
+            self._last_hotkey = None
+
+    def cleanup(self):
+        self.walker.force_disable()
+        self.data["active"] = False
+        add_log(f">>> Модуль {self.module_name.capitalize()} остановлен", page=self.page)
