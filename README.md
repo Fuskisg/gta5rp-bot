@@ -28,7 +28,7 @@
 
 1. **Клонируйте репозиторий:**
    ```bash
-   git clone https://gitflic.ru/project/dornode/bot.git
+   git clone https://codeberg.org/dornode/bot.git
    cd bot
    ```
 
@@ -76,5 +76,5 @@ pip install nuitka
 
 ## 🔗 Ссылки
 
-- [GitFlic проект](https://gitflic.ru/project/dornode/bot/release)
+- [GitFlic проект](https://codeberg.org/dornode/bot.git)
 - [ViGEm Bus Driver](https://github.com/ViGEm/ViGEmBus)
