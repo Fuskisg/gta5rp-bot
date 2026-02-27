@@ -57,7 +57,7 @@ def get_online():
 
 def check_update_once():
     try:
-        response = requests.get("https://gitflic.ru/project/dornode/bot/blob/raw?file=version.txt", timeout=5)
+        response = requests.get("https://codeberg.org/dornode/bot/raw/version.txt", timeout=5)
         if response.status_code == 200:
             remote_version = response.text.strip()
             local_version = common.version.strip()
