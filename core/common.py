@@ -17,7 +17,7 @@ import numpy as np
 import mss
 
 cached_online = "загрузка..."
-version="4.4"
+version="4.5"
 cached_update = {"needs_update": False, "remote_version": "", "local_version": version}
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
@@ -140,9 +140,6 @@ def add_log(msg: str, level: str = "INFO", page: str = "global"):
 
     log_func = getattr(logger, level.lower(), logger.info)
     log_func(formatted_msg)
-
-    for handler in logger.handlers:
-        handler.flush()
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
