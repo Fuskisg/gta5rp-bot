@@ -48,8 +48,8 @@
 </td>
 <td align="center" width="25%">
 
-### 🏭 DeMorgan
-Фарм на ферме: токарный станок и швейка
+### 🏭 Demorgan
+Токарный станок и швейка
 
 </td>
 <td align="center" width="25%">
@@ -95,7 +95,7 @@
 <td align="center">
 
 ### ⌨️ Keybinds
-Настройка горячих клавиш
+Биндер для клавиш
 
 </td>
 <td align="center">
@@ -196,11 +196,6 @@ bot/
 
 ---
 
-## ⚙️ Конфигурация
-
-Все настройки хранятся в `configs/config.json`:
-
----
 
 ## ⚠️ Важно
 
@@ -217,7 +212,6 @@ bot/
 <div align="center">
 
 [![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/bot_gta5blast)
-[![Codeberg](https://img.shields.io/badge/Codeberg-2185D0?style=for-the-badge&logo=Codeberg&logoColor=white)](https://codeberg.org/dornode/bot.git)
 [![ViGEm](https://img.shields.io/badge/ViGEm_Driver-FF6F00?style=for-the-badge&logo=xbox&logoColor=white)](https://github.com/ViGEm/ViGEmBus)
 
 </div>
