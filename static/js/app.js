@@ -246,6 +246,15 @@ function toggleSidebar() {
     document.body.classList.toggle('sidebar-open');
 }
 
+// Qt WebEngine repaint fix: animate checkbox ::after via JS class instead of :checked CSS trigger
+document.addEventListener('change', function(e) {
+    const el = e.target;
+    if (!el.classList.contains('checkbox-input')) return;
+    el.classList.remove('is-checked', 'is-unchecked');
+    void el.offsetWidth; // force reflow so animation restarts
+    el.classList.add(el.checked ? 'is-checked' : 'is-unchecked');
+}, true);
+
 window.sendLogsToTelegram = function() {
     const container = document.getElementById('log-container');
     if (!container || container.innerText.trim() === "") {
