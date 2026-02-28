@@ -42,7 +42,10 @@
         <div class="modal-content">
             <span class="close-modal">&times;</span>
             <h3>Удалить задание</h3>
-            <select id="delete-select"></select>
+            <div class="custom-select" id="delete-select">
+                <div class="custom-select-trigger">Выберите задание</div>
+                <div class="custom-select-options"></div>
+            </div>
             <button class="button" id="btn-del-confirm">Удалить</button>
         </div>
     </div>
@@ -166,7 +169,23 @@
         if (e.target.id === 'btn-show-add') document.getElementById('add-modal').style.display = 'block';
         if (e.target.id === 'btn-show-del') {
             const select = document.getElementById('delete-select');
-            select.innerHTML = localState.tasks.map((t, i) => `<option value="${i}">${t.name}</option>`).join('');
+            const optionsContainer = select.querySelector('.custom-select-options');
+            const trigger = select.querySelector('.custom-select-trigger');
+            optionsContainer.innerHTML = localState.tasks.map((t, i) =>
+                `<div class="custom-select-option" data-value="${i}">${t.name}</div>`
+            ).join('');
+            trigger.textContent = 'Выберите задание';
+            trigger.dataset.value = '';
+            select.classList.remove('open');
+            optionsContainer.querySelectorAll('.custom-select-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    optionsContainer.querySelectorAll('.custom-select-option').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    trigger.textContent = opt.textContent;
+                    trigger.dataset.value = opt.dataset.value;
+                    select.classList.remove('open');
+                });
+            });
             document.getElementById('delete-modal').style.display = 'block';
         }
         
@@ -174,6 +193,16 @@
             document.getElementById('add-modal').style.display = 'none';
             document.getElementById('delete-modal').style.display = 'none';
         }
+
+        if (e.target.classList.contains('custom-select-trigger')) {
+            const sel = e.target.closest('.custom-select');
+            sel.classList.toggle('open');
+            return;
+        }
+
+        document.querySelectorAll('.custom-select.open').forEach(sel => {
+            if (!sel.contains(e.target)) sel.classList.remove('open');
+        });
 
         if (e.target.id === 'btn-clear') {
             await fetch('/api/bp/clear_checked', { method: 'POST' });
@@ -195,7 +224,9 @@
         }
 
         if (e.target.id === 'btn-del-confirm') {
-            const idx = document.getElementById('delete-select').value;
+            const trigger = document.querySelector('#delete-select .custom-select-trigger');
+            const idx = trigger ? trigger.dataset.value : '';
+            if (idx === '' || idx === undefined) return;
             await fetch('/api/bp/delete_task', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
