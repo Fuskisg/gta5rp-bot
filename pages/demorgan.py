@@ -44,13 +44,13 @@ def start_timer(seconds: int, label: str, page_name: str = "demorgan") -> dict:
 
     def _run():
         start = time.time()
-        while cancel["active"] and (time.time() - start) < seconds:
+        while cancel["active"] and not stop_event.is_set() and (time.time() - start) < seconds:
             left = seconds - int(time.time() - start)
             mins, secs = divmod(left, 60)
             add_log(f"[timer] {label}: {mins:02d}:{secs:02d}", page=page_name)
             stop_event.wait(1)
 
-        if cancel["active"]:
+        if cancel["active"] and not stop_event.is_set():
             add_log(f"[✔] {label} завершён!", page=page_name)
             play_beep()
 
@@ -65,14 +65,15 @@ def demorgan_worker():
     data = state["modules"]["demorgan"]
     settings = data["settings"]
 
-    add_log(">>> Деморган запущен", page="demorgan")
-    
-    tokar_pause = settings.get("tokar_pause", 65)
-    shveika_pause = settings.get("shveika_pause", 85)
-    shveika_exe = settings.get("shveika_exe", 0.1)
-    monitor = auto_detect_region(0.5,0.6,0.25)
-
     try:
+        add_log(">>> Деморган запущен", page="demorgan")
+
+        tokar_pause = settings.get("tokar_pause", 65)
+        shveika_pause = settings.get("shveika_pause", 85)
+        shveika_exe = settings.get("shveika_exe", 0.1)
+        monitor_tokar = auto_detect_region(0.5,0.6,0.25)
+        monitor = auto_detect_region(0.6,1,0)
+
         tokar_template = load_template_image("tokar/i3.png")
         shveika_templates = [load_template_image(f"shveika/{i+1}.png") for i in range(20)]
 
@@ -103,10 +104,10 @@ def demorgan_worker():
                         if last_known_position:
                             cx, cy = last_known_position
                             region = {
-                                "left": max(cx - 100, monitor["left"]),
-                                "top": max(cy - 100 - h // 2, monitor["top"]),
-                                "width": min(cx + 100, monitor["left"] + monitor["width"]) - max(cx - 100, monitor["left"]),
-                                "height": min(cy + 100 - h // 2, monitor["top"] + monitor["height"]) - max(cy - 100 - h // 2, monitor["top"]),
+                                "left": max(cx - 100, monitor_tokar["left"]),
+                                "top": max(cy - 100 - h // 2, monitor_tokar["top"]),
+                                "width": min(cx + 100, monitor_tokar["left"] + monitor_tokar["width"]) - max(cx - 100, monitor_tokar["left"]),
+                                "height": min(cy + 100 - h // 2, monitor_tokar["top"] + monitor_tokar["height"]) - max(cy - 100 - h // 2, monitor_tokar["top"]),
                             }
                             found = search_in_region_tokar(sct, region, tokar_template, h, w)
                         
@@ -151,14 +152,14 @@ def demorgan_worker():
                         frame = np.array(sct.grab(monitor))
                         image_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
-                        sentinel_center, _ = locate_one(image_bgr, sentinel_template, 0.92)
+                        sentinel_center, _ = locate_one(image_bgr, sentinel_template, 0.85)
                         if sentinel_center is None:
                             if time.time() - last_wait_logged > 1.5:
                                 last_wait_logged = time.time()
                             stop_event.wait(0.01)
                             continue
 
-                        coords = locate_all_20(image_bgr, shveika_templates, 0.90)
+                        coords = locate_all_20(image_bgr, shveika_templates, 0.85)
 
                         if not all(coords):
                             if time.time() - last_wait_logged > 1.5:
