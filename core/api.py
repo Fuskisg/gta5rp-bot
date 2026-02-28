@@ -41,11 +41,18 @@ def events():
         for log in state["logs"]: 
             yield f"data: {log}\n\n"
         try:
-            while True: 
-                yield f"data: {q.get()}\n\n"
-        except GeneratorExit: 
-            clients.remove(q)
-    return Response(stream(), mimetype='text/event-stream')
+            while True:
+                try:
+                    msg = q.get(timeout=15)
+                    yield f"data: {msg}\n\n"
+                except queue.Empty:
+                    yield ": heartbeat\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            if q in clients:
+                clients.remove(q)
+    return Response(stream(), mimetype='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 @api.route('/api/get_logs')
 def get_logs():
@@ -57,19 +64,21 @@ def get_online():
 
 def check_update_once():
     try:
-        response = requests.get("https://codeberg.org/dornode/bot/raw/version.txt", timeout=5)
+        response = requests.get("https://codeberg.org/dornode/bot/raw/branch/v2-rewrite/version.json", timeout=5)
         if response.status_code == 200:
-            remote_version = response.text.strip()
+            data = response.json()
+            remote_version = str(data.get("version", "")).strip()
+            download_link = str(data.get("link", "")).strip()
             local_version = common.version.strip()
             try:
                 needs_update = float(remote_version) > float(local_version)
             except ValueError:
                 needs_update = False
-            common.cached_update = {"needs_update": needs_update, "remote_version": remote_version, "local_version": local_version}
+            common.cached_update = {"needs_update": needs_update, "remote_version": remote_version, "local_version": local_version, "download_link": download_link}
         else:
-            common.cached_update = {"needs_update": False, "error": "server_error", "remote_version": "", "local_version": common.version}
+            common.cached_update = {"needs_update": False, "error": "server_error", "remote_version": "", "local_version": common.version, "download_link": ""}
     except Exception:
-        common.cached_update = {"needs_update": False, "error": "network_error", "remote_version": "", "local_version": common.version}
+        common.cached_update = {"needs_update": False, "error": "network_error", "remote_version": "", "local_version": common.version, "download_link": ""}
 
 def fetch_online_once():
     try:
