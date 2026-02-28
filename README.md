@@ -4,13 +4,13 @@
 
 **Мощный инструмент автоматизации для GTA5RP**
 
-[![Version](https://img.shields.io/badge/version-4.5-blue.svg)](https://t.me/bot_gta5blast)
-[![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
+[![Version](https://badgen.net/badge/version/4.5/blue)](https://t.me/bot_gta5blast)
+[![Python](https://badgen.net/badge/Python/3.8+/green)](https://www.python.org/)
+[![Platform](https://badgen.net/badge/platform/Windows/lightgrey)](https://www.microsoft.com/windows)
+[![License](https://badgen.net/badge/license/MIT/brightgreen)](LICENSE)
 
-<img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white" alt="Flask"/>
-<img src="https://img.shields.io/badge/Qt-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt"/>
+<img src="https://badgen.net/badge/Flask/Backend/black" alt="Flask"/>
+<img src="https://badgen.net/badge/Qt/Framework/41CD52" alt="Qt"/>
 
 ---
 
