@@ -8,7 +8,7 @@
         <h2 class="update-title">Доступно обновление!</h2>
         <p class="update-text">Вышла новая версия <span>{{ update_info.remote_version }}</span></p>
         <p class="update-subtext">Ваша версия: <span>{{ update_info.local_version }}</span></p>
-        <a href="https://gitflic.ru/project/dornode/bot/release" target="_blank" class="update-download-btn">⬇️ Скачать обновление</a>
+        <a href="{{ update_info.download_link }}" target="_blank" class="update-download-btn">⬇️ Скачать обновление</a>
         <button class="update-close-btn" onclick="closeUpdateOverlay()">Закрыть</button>
     </div>
 </div>
