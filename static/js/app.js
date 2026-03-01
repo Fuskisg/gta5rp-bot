@@ -127,9 +127,29 @@ function initSliders() {
         
         const update = () => {
             const percent = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
-            slider.style.setProperty('--range-progress', `${percent}%`);
+            // Qt WebEngine repaint fix: set backgroundSize directly (numeric property repaints reliably)
+            slider.style.backgroundSize = `${percent}% 100%`;
         };
         
+        // Qt WebEngine repaint fix: drive hover/active via JS classes
+        // because :hover/:active on ::-webkit-slider-thumb don't trigger repaint in Qt
+        slider.addEventListener('mouseenter', () => {
+            slider.classList.add('is-hover');
+            void slider.offsetWidth;
+        });
+        slider.addEventListener('mouseleave', () => {
+            slider.classList.remove('is-hover', 'is-active');
+            void slider.offsetWidth;
+        });
+        slider.addEventListener('mousedown', () => {
+            slider.classList.add('is-active');
+            void slider.offsetWidth;
+        });
+        slider.addEventListener('mouseup', () => {
+            slider.classList.remove('is-active');
+            void slider.offsetWidth;
+        });
+
         update();
         slider.addEventListener('input', update);
         slider.dataset.initialized = 'true';
