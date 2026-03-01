@@ -21,6 +21,8 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebChannel import QWebChannel
 
+QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL)
+
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['DEBUG'] = False
@@ -82,7 +84,11 @@ class MainWindow(QMainWindow):
         self._channel = QWebChannel(self)
         self._channel.registerObject('windowBridge', self._bridge)
         self._page.setWebChannel(self._channel)
+        self._page.lifecycleStateChanged.connect(self._on_state_changed)
 
+    def _on_state_changed(self, state):
+        if state == QWebEnginePage.LifecycleState.Active:
+            self.browser.update()
 
     def showEvent(self, event):
         super().showEvent(event)
