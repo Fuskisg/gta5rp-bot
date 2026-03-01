@@ -72,7 +72,7 @@ def demorgan_worker():
         shveika_pause = settings.get("shveika_pause", 85)
         shveika_exe = settings.get("shveika_exe", 0.1)
         monitor_tokar = auto_detect_region(0.5,0.6,0.25)
-        monitor = auto_detect_region(0.6,1,0)
+        monitor = auto_detect_region(0.4,1,0)
 
         tokar_template = load_template_image("tokar/i3.png")
         shveika_templates = [load_template_image(f"shveika/{i+1}.png") for i in range(20)]
@@ -81,6 +81,7 @@ def demorgan_worker():
             add_log("[⚠️] Не все шаблоны загружены", page="demorgan")
             none_count = sum(1 for t in shveika_templates if t is None)
             add_log(f"[⚠️] Токарь: {tokar_template is not None}, Швейка: {20 - none_count}/20", page="demorgan")
+            add_log("[⚠️] Возможно по пути к боту есть русские символы", page="demorgan")
             return
 
         add_log(f"[✓] Шаблоны загружены. Токарь: {tokar_template.shape}, Швейка: {shveika_templates[0].shape if shveika_templates[0] is not None else 'None'}", page="demorgan")
