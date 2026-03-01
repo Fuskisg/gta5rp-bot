@@ -15,6 +15,28 @@
                    value="{{ settings.hotkey_taxi | default('F5', true) | upper }}">
         </div>
 
+        <div class="hotkey-container">
+            <div class="hotkey-info">
+                <div class="hotkey-title">🔊 Звук уведомления</div>
+                <div class="hotkey-description">Выберите звук при нахождении вызова</div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-shrink: 0;">
+                <div class="custom-select" id="sound-select" style="width: 160px; margin: 0;">
+                    <div class="custom-select-trigger" id="sound-select-trigger">
+                        {{ 'Яндекс' if settings.sound_type == 'yandex' else 'Обычный' }}
+                    </div>
+                </div>
+                <button class="button" style="width: auto; padding: 10px 16px; margin: 0; font-size: 0.85rem; white-space: nowrap;" onclick="testSound()">
+                    🔊 Тест
+                </button>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>Громкость<span id="volume-value">{{ settings.volume | default(100, true) }}</span>%</label>
+            <input type="range" id="volume-slider" min="0" max="100" value="{{ settings.volume | default(100, true) }}" step="1">
+        </div>
+
         <button class="button" id="taxi-btn" onclick="toggleTaxi()">
             {{ 'ОСТАНОВИТЬ' if active else 'ЗАПУСТИТЬ' }}
         </button>
@@ -32,6 +54,107 @@
 <script src="{{ url_for('static', filename='js/hotkey.js') }}"></script>
 <script>
 (function() {
+    var currentSoundType = "{{ settings.sound_type | default('normal', true) }}";
+    var currentVolume = "{{ settings.volume | default(100, true) }}";
+    var volumeTimer = null;
+
+    var volumeSlider = document.getElementById('volume-slider');
+    var volumeValue = document.getElementById('volume-value');
+    if (volumeSlider && volumeValue) {
+        volumeSlider.addEventListener('input', function() {
+            currentVolume = parseInt(this.value);
+            volumeValue.textContent = currentVolume;
+            if (volumeTimer) clearTimeout(volumeTimer);
+            volumeTimer = setTimeout(function() {
+                fetch('/api/taxi/volume', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ volume: currentVolume })
+                }).catch(function(e) { console.error(e); });
+            }, 300);
+        });
+    }
+
+    var selectEl = document.getElementById('sound-select');
+    var trigger = document.getElementById('sound-select-trigger');
+    var isOpen = false;
+
+    var optionsPanel = document.createElement('div');
+    optionsPanel.className = 'custom-select-options';
+    optionsPanel.id = 'sound-select-options';
+    optionsPanel.style.cssText = 'position:fixed;display:none;z-index:999999;';
+    optionsPanel.innerHTML = '<div class="custom-select-option' + (currentSoundType !== 'yandex' ? ' selected' : '') + '" data-value="normal">Обычный</div>' +
+                             '<div class="custom-select-option' + (currentSoundType === 'yandex' ? ' selected' : '') + '" data-value="yandex">Яндекс</div>';
+    document.body.appendChild(optionsPanel);
+    var options = optionsPanel.querySelectorAll('.custom-select-option');
+
+    function positionDropdown() {
+        var rect = trigger.getBoundingClientRect();
+        optionsPanel.style.top = (rect.bottom + 4) + 'px';
+        optionsPanel.style.left = rect.left + 'px';
+        optionsPanel.style.width = rect.width + 'px';
+    }
+
+    function openSelect() {
+        positionDropdown();
+        optionsPanel.style.display = 'block';
+        selectEl.classList.add('open');
+        isOpen = true;
+    }
+
+    function closeSelect() {
+        optionsPanel.style.display = 'none';
+        selectEl.classList.remove('open');
+        isOpen = false;
+    }
+
+    trigger.addEventListener('click', function() {
+        if (isOpen) closeSelect(); else openSelect();
+    });
+
+    options.forEach(function(opt) {
+        opt.addEventListener('click', function() {
+            options.forEach(function(o) { o.classList.remove('selected'); });
+            opt.classList.add('selected');
+            trigger.textContent = opt.textContent;
+            currentSoundType = opt.getAttribute('data-value');
+            closeSelect();
+            updateSound(currentSoundType);
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!selectEl.contains(e.target) && !optionsPanel.contains(e.target)) {
+            closeSelect();
+        }
+    });
+
+    window.addEventListener('scroll', function() { if (isOpen) closeSelect(); }, true);
+
+    window.updateSound = async function(soundType) {
+        try {
+            await fetch('/api/taxi/sound', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ sound_type: soundType })
+            });
+        } catch (e) {
+            console.error('Ошибка при изменении звука:', e);
+        }
+    };
+
+    window.testSound = async function() {
+        try {
+            await fetch('/api/taxi/test_sound', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ sound_type: currentSoundType, volume: currentVolume })
+            });
+        } catch (e) {
+            console.error('Ошибка при тестировании звука:', e);
+        }
+    };
+
     window.toggleTaxi = async function() {
         try {
             const res = await fetch('/api/taxi/toggle', {
