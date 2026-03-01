@@ -1,6 +1,7 @@
 import threading
 import time
 import os
+import ctypes
 import pyautogui
 from flask import render_template, jsonify, Blueprint, request
 from core.common import state, add_log, hotkey_manager, get_settings, update_settings, auto_detect_region
@@ -18,14 +19,37 @@ _saved = get_settings("taxi")
 if _saved:
     state["modules"]["taxi"]["settings"] = _saved
 
-def play_notification():
+if "sound_type" not in state["modules"]["taxi"]["settings"]:
+    state["modules"]["taxi"]["settings"]["sound_type"] = "normal"
+
+if "volume" not in state["modules"]["taxi"]["settings"]:
+    state["modules"]["taxi"]["settings"]["volume"] = 100
+
+def play_notification(sound_type=None, volume=None):
     try:
         import winsound
-        wav_path = os.path.join(os.path.dirname(__file__), '..', "static", "wav", "taxi.wav")
-        if os.path.exists(wav_path):
-            winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        if sound_type is None:
+            sound_type = state["modules"]["taxi"]["settings"].get("sound_type", "normal")
+        if volume is None:
+            volume = state["modules"]["taxi"]["settings"].get("volume", 100)
+        
+        if sound_type == "yandex":
+            wav_name = "taxi_yandex.wav"
         else:
+            wav_name = "taxi.wav"
+        
+        wav_path = os.path.join(os.path.dirname(__file__), '..', "static", "wav", wav_name)
+        if not os.path.exists(wav_path):
             winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            return
+        
+        vol = max(0, min(100, int(volume)))
+        if vol <= 0:
+            return
+        
+        level = int(0xFFFF * vol / 100)
+        ctypes.windll.winmm.waveOutSetVolume(0, level | (level << 16))
+        winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
     except Exception:
         pass
 
@@ -113,6 +137,31 @@ def api_toggle():
 
     toggle_taxi()
     return jsonify({"status": "ok", "active": state["modules"]["taxi"]["active"]})
+
+@taxi_bp.route('/api/taxi/sound', methods=['POST'])
+def api_update_sound():
+    data = request.get_json() or {}
+    sound_type = data.get('sound_type', 'normal')
+    state["modules"]["taxi"]["settings"]["sound_type"] = sound_type
+    update_settings("taxi", state["modules"]["taxi"]["settings"], page="taxi")
+    return jsonify({"status": "ok", "sound_type": sound_type})
+
+@taxi_bp.route('/api/taxi/test_sound', methods=['POST'])
+def api_test_sound():
+    data = request.get_json() or {}
+    sound_type = data.get('sound_type', state["modules"]["taxi"]["settings"].get("sound_type", "normal"))
+    volume = data.get('volume', state["modules"]["taxi"]["settings"].get("volume", 100))
+    play_notification(sound_type, volume)
+    return jsonify({"status": "ok"})
+
+@taxi_bp.route('/api/taxi/volume', methods=['POST'])
+def api_update_volume():
+    data = request.get_json() or {}
+    volume = int(data.get('volume', 100))
+    volume = max(0, min(100, volume))
+    state["modules"]["taxi"]["settings"]["volume"] = volume
+    update_settings("taxi", state["modules"]["taxi"]["settings"], page="taxi")
+    return jsonify({"status": "ok", "volume": volume})
 
 def register_hotkeys(hm):
     hotkey = state["modules"]["taxi"]["settings"].get("hotkey_taxi", "f5")
