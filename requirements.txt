@@ -1,0 +1,14 @@
+Flask
+PySide6
+PySide6-WebEngine
+pynput
+requests
+PyGetWindow
+PyAutoGUI
+pydirectinput
+opencv-python
+numpy
+mss
+vgamepad
+keyboard
+pywin32
