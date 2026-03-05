@@ -78,9 +78,9 @@ state = {
             active=False,
             settings={"tokar_pause": 65, "shveika_pause": 85, "shveika_exe": 0.1}
         ),
-        "taxi": ModuleState(
+        "kpk": ModuleState(
             active=False,
-            settings={"hotkey_taxi": "f5"}
+            settings={"hotkey_kpk": "f5"}
         )
     },
     "logs": [],
@@ -112,8 +112,8 @@ DEFAULT_CONFIG = {
     "keybinds": {
         "binds": []
     },
-    "taxi": {
-        "hotkey_taxi": "f5"
+    "kpk": {
+        "hotkey_kpk": "f5"
     }
 }
 
