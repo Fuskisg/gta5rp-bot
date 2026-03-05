@@ -8,16 +8,12 @@
     
     <div class="settings-group">
         <div class="input-group">
-            <label>
-                Выберите блюдо:
-            </label>
-            <select id="dish-select" class="input-text">
-                {% for recipe in recipes %}
-                <option value="{{ recipe }}" {% if settings.selected_dish == recipe %}selected{% endif %}>
-                    {{ recipe }}
-                </option>
-                {% endfor %}
-            </select>
+            <label>Выберите блюдо:</label>
+            <div class="custom-select" id="dish-select" data-options='{{ recipes | tojson | safe }}' data-selected="{{ settings.selected_dish | default(recipes[0], true) }}">
+                <div class="custom-select-trigger">
+                    {{ settings.selected_dish | default(recipes[0], true) }}
+                </div>
+            </div>
         </div>
 
         <button class="button" id="cooking-btn" onclick="toggleCooking()">
@@ -38,15 +34,19 @@
 
 <script>
 (function() {
+    var el = document.getElementById('dish-select');
+    var dishSelect = createCustomSelect({
+        id: 'dish-select',
+        selected: el.dataset.selected,
+        options: JSON.parse(el.dataset.options)
+    });
+
     window.toggleCooking = async function() {
-        const dishSelect = document.getElementById('dish-select');
-        const selectedDish = dishSelect ? dishSelect.value : 'Фруктовый смузи';
-        
         try {
             const res = await fetch('/api/cooking/toggle', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ dish: selectedDish })
+                body: JSON.stringify({ dish: dishSelect.getValue() })
             });
             const data = await res.json();
             if (data.active !== undefined) {
