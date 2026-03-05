@@ -1251,6 +1251,26 @@ input[type="range"]::-moz-range-thumb {
     overflow-y: auto;
     z-index: 99999;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    scrollbar-width: thin;
+    scrollbar-color: var(--grad-start) rgba(31, 41, 55, 0.5);
+}
+
+.custom-select-options::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-select-options::-webkit-scrollbar-track {
+    background: rgba(31, 41, 55, 0.5);
+    border-radius: 3px;
+}
+
+.custom-select-options::-webkit-scrollbar-thumb {
+    background: var(--grad-start);
+    border-radius: 3px;
+}
+
+.custom-select-options::-webkit-scrollbar-thumb:hover {
+    background: var(--grad-end);
 }
 
 .custom-select.open .custom-select-options {
