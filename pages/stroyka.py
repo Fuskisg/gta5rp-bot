@@ -31,7 +31,7 @@ def handle_visible_image(path: str, keys: dict, visible_state: dict, data: dict,
         visible_state[path] = False
 
 def stroyka_worker():
-    add_log("Поиск начат.", page="stroyka")
+    add_log(">>> Модуль Стройка/Шахта запущен", page="stroyka")
     data = state["modules"]["stroyka"]
     data["counter"] = 0
 
