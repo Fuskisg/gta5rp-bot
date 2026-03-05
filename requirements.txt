@@ -1,6 +1,5 @@
 Flask
 PySide6
-PySide6-WebEngine
 pynput
 requests
 PyGetWindow
