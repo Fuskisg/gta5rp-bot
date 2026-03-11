@@ -114,7 +114,9 @@ def inject_ui_sounds():
 
 def on_press(key):
     try:
-        k = str(key).replace('Key.', '').lower()
+        if hotkey_manager.suspended:
+            return
+        k = str(key).replace('Key.', '').replace("'", '').lower()
         if k in hotkey_manager.actions:
             hotkey_manager.actions[k]()
         else:
