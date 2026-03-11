@@ -22,6 +22,10 @@ active_threads = {}
 def execute_bind(bind_data):
     bind_id = bind_data.get("id")
     keys = bind_data.get("keys", [])
+    action_type = bind_data.get("action_type", "hold")
+    hold_duration = bind_data.get("hold_duration", 2)
+    cooldown = bind_data.get("cooldown", 5)
+    repeat = bind_data.get("repeat", False)
     
     if not keys:
         return
@@ -33,31 +37,64 @@ def execute_bind(bind_data):
     def worker():
         thread_data = {"stop": False}
         active_threads[bind_id] = thread_data
+        name = bind_data.get('name', 'Без названия')
         try:
-            add_log(f">>> Бинд '{bind_data.get('name', 'Без названия')}' активирован", page="keybinds")
-            for key in keys:
+            add_log(f">>> Бинд '{name}' активирован", page="keybinds")
+            
+            while True:
                 if thread_data["stop"]:
                     return
-                pydirectinput.keyDown(key.lower())
-                add_log(f"Зажата клавиша: {key}", page="keybinds")
-            
-            while not thread_data["stop"]:
-                time.sleep(0.1)
-            
+                
+                if action_type == "hold":
+                    for key in keys:
+                        if thread_data["stop"]:
+                            return
+                        pydirectinput.keyDown(key.lower())
+                    add_log(f"Зажаты клавиши: {', '.join(k.upper() for k in keys)} на {hold_duration} сек.", page="keybinds")
+                    
+                    elapsed = 0.0
+                    while elapsed < hold_duration and not thread_data["stop"]:
+                        time.sleep(0.05)
+                        elapsed += 0.05
+                    
+                    for key in reversed(keys):
+                        try:
+                            pydirectinput.keyUp(key.lower())
+                        except:
+                            pass
+                    
+                    if thread_data["stop"]:
+                        return
+                        
+                else:
+                    for key in keys:
+                        if thread_data["stop"]:
+                            return
+                        pydirectinput.press(key.lower())
+                    add_log(f"Нажаты клавиши: {', '.join(k.upper() for k in keys)}", page="keybinds")
+                
+                if not repeat:
+                    break
+                
+                add_log(f"Ожидание {cooldown} сек...", page="keybinds")
+                elapsed = 0.0
+                while elapsed < cooldown and not thread_data["stop"]:
+                    time.sleep(0.05)
+                    elapsed += 0.05
+                    
         except Exception as e:
             add_log(f"Ошибка выполнения бинда: {e}", level="ERROR", page="keybinds")
         finally:
             for key in reversed(keys):
                 try:
                     pydirectinput.keyUp(key.lower())
-                    add_log(f"Отпущена клавиша: {key}", page="keybinds")
                 except:
                     pass
             
             if bind_id in active_threads:
                 del active_threads[bind_id]
             
-            add_log(f">>> Бинд '{bind_data.get('name', 'Без названия')}' остановлен", page="keybinds")
+            add_log(f">>> Бинд '{name}' остановлен", page="keybinds")
     
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
@@ -141,6 +178,13 @@ def api_test_bind():
 @keybinds_bp.route('/api/keybinds/active', methods=['GET'])
 def api_active_binds():
     return jsonify({"active": list(active_threads.keys())})
+
+@keybinds_bp.route('/api/keybinds/suspend', methods=['POST'])
+def suspend_hotkeys():
+    from core.common import hotkey_manager
+    data = request.get_json() or {}
+    hotkey_manager.suspended = bool(data.get('suspended', False))
+    return jsonify(ok=True)
 
 @keybinds_bp.route('/api/keybinds/stop_all', methods=['POST'])
 def api_stop_all():
