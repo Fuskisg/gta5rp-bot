@@ -176,6 +176,7 @@ def update_settings(section: str, settings: dict, page: str = "system"):
 class HotkeyManager:
     def __init__(self):
         self.actions: Dict[str, Callable[[], None]] = {}
+        self.suspended = False
 
     def register(self, key: str, callback: Callable[[], None]):
         if not callable(callback):
