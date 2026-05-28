@@ -1,5 +1,4 @@
 /* ===== DESIGN TOKENS (CSS Custom Properties) ===== */
-@import url('https://fonts.googleapis.com/css?family=Arapey|Cantarell|Comfortaa|Khand|Russo+One|Ubuntu');
 
 :root {
     /* Color Palette - GTA-style gradient */
@@ -1383,6 +1382,15 @@ input[type="range"]::-moz-range-thumb {
 
 #log-container::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(to bottom, rgb(34, 197, 144), rgb(52, 211, 153));
+}
+
+.log-highlight {
+    background: rgba(239, 68, 68, 0.22);
+    border-left: 4px solid var(--danger);
+    padding: 0 8px;
+    border-radius: 4px;
+    color: #ffece6;
+    margin-bottom: 2px;
 }
 
 /* ===== FLOATING ACTION BUTTON ===== */

@@ -68,6 +68,17 @@ def demorgan_worker():
     try:
         add_log(">>> Деморган запущен", page="demorgan")
 
+        try:
+            import winreg
+
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+                smoothing, _ = winreg.QueryValueEx(key, "FontSmoothing")
+
+            if str(smoothing) == "0":
+                add_log("⚠️ Сглаживание шрифтов: выключено", page="demorgan")
+        except Exception:
+            pass
+
         tokar_pause = settings.get("tokar_pause", 65)
         shveika_pause = settings.get("shveika_pause", 85)
         shveika_exe = settings.get("shveika_exe", 0.1)

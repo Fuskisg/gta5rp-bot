@@ -13,18 +13,22 @@ import ctypes
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
+os.environ["QSG_RENDER_LOOP"] = "basic"
 
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtCore import QUrl, QObject, Slot, Qt
-from PySide6.QtGui import QColor, QDesktopServices
+from PySide6.QtGui import QColor, QDesktopServices, QSurfaceFormat
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebChannel import QWebChannel
 
-QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL)
+fmt = QSurfaceFormat()
+fmt.setSwapInterval(0)
+fmt.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
+QSurfaceFormat.setDefaultFormat(fmt)
 
 app = Flask(__name__)
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600
 app.config['DEBUG'] = False
 app.config['ENV'] = 'production'
 app.register_blueprint(pages_bp)
@@ -73,10 +77,11 @@ class MainWindow(QMainWindow):
         self.move(x, y)
 
         self.browser = QWebEngineView(self)
+        self.browser.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self._page = ExternalPage(self.browser)
         self.browser.setPage(self._page)
         self.setCentralWidget(self.browser)
-        self._page.setBackgroundColor(QColor(0, 0, 0))
+        self._page.setBackgroundColor(QColor(13, 13, 13))
         self.browser.setUrl(QUrl(url))
         self.setFocusProxy(self.browser)
 
@@ -84,19 +89,10 @@ class MainWindow(QMainWindow):
         self._channel = QWebChannel(self)
         self._channel.registerObject('windowBridge', self._bridge)
         self._page.setWebChannel(self._channel)
-        self._page.lifecycleStateChanged.connect(self._on_state_changed)
-
-    def _on_state_changed(self, state):
-        if state == QWebEnginePage.LifecycleState.Active:
-            self.browser.update()
 
     def showEvent(self, event):
         super().showEvent(event)
         self.browser.setFocus()
-
-    def _force_update(self):
-        self.browser.update()
-        QApplication.processEvents()
 
 @app.context_processor
 def inject_ui_sounds():
@@ -119,10 +115,8 @@ def on_press(key):
         k = str(key).replace('Key.', '').replace("'", '').lower()
         if k in hotkey_manager.actions:
             hotkey_manager.actions[k]()
-        else:
-            print(f"Неизвестная клавиша: {k}")
-    except Exception as e:
-        print(f"Ошибка хоткея: {e}")
+    except Exception:
+        pass
 
 def start_flask():
     app.run(port=5000, use_reloader=False, threaded=True, debug=False)
@@ -133,7 +127,7 @@ def wait_for_port(port, timeout=5.0):
         try:
             with socket.create_connection(('127.0.0.1', port), timeout=0.1):
                 return True
-        except:
+        except OSError:
             time.sleep(0.02)
     return False
 

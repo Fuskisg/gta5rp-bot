@@ -4,11 +4,10 @@ import time
 import logging
 import json
 import os
-from typing import Dict, List, Callable, Any, Optional, Tuple
+from typing import Dict, List, Callable, Any, Optional, Tuple, Union
 from logging.handlers import RotatingFileHandler
 import pygetwindow as gw
 import traceback
-from typing import Optional, Union, Callable, Any, Dict, List
 import pyautogui
 from pyautogui import ImageNotFoundException
 import pydirectinput
@@ -39,6 +38,9 @@ logger.addHandler(file_handler)
 logging.getLogger().handlers[0].flush()
 
 clients: List[queue.Queue] = []
+_clients_lock = threading.Lock()
+_config_lock = threading.Lock()
+_config_cache: Optional[dict] = None
 
 
 class ModuleState(dict):
@@ -131,34 +133,43 @@ def add_log(msg: str, level: str = "INFO", page: str = "global"):
     if len(state["page_logs"][page]) > 50:  # Ограничение на 50 логов на страницу
         state["page_logs"][page].pop(0)
 
-    for q in clients[:]:
-        try:
-            q.put(formatted_msg)
-        except Exception as e:
-            logger.error(f"Failed to send log to client: {e}")
-            clients.remove(q)
+    with _clients_lock:
+        for q in clients[:]:
+            try:
+                q.put_nowait(formatted_msg)
+            except Exception:
+                clients.remove(q)
 
     log_func = getattr(logger, level.lower(), logger.info)
     log_func(formatted_msg)
 
 def load_config():
-    if not os.path.exists(CONFIG_FILE):
-        return DEFAULT_CONFIG.copy()
-    try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            return config
-    except (json.JSONDecodeError, IOError) as e:
-        add_log(f"{CONFIG_FILE} повреждён, загружены стандартные настройки", level="WARNING", page="system")
-        return DEFAULT_CONFIG.copy()
+    global _config_cache
+    with _config_lock:
+        if _config_cache is not None:
+            return _config_cache
+        if not os.path.exists(CONFIG_FILE):
+            _config_cache = DEFAULT_CONFIG.copy()
+            return _config_cache
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                _config_cache = json.load(f)
+                return _config_cache
+        except (json.JSONDecodeError, IOError):
+            add_log(f"{CONFIG_FILE} повреждён, загружены стандартные настройки", level="WARNING", page="system")
+            _config_cache = DEFAULT_CONFIG.copy()
+            return _config_cache
 
 def save_config(config: dict, page: str = "system"):
+    global _config_cache
     try:
         temp_file = CONFIG_FILE + ".tmp"
         with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
         os.replace(temp_file, CONFIG_FILE)
+        with _config_lock:
+            _config_cache = config.copy()
         return True
     except Exception as e:
         add_log(f"Ошибка при сохранении: {str(e)}", level="ERROR", page=page)
@@ -166,7 +177,7 @@ def save_config(config: dict, page: str = "system"):
 
 def get_settings(section: str):
     config = load_config()
-    return config.get(section, DEFAULT_CONFIG.get(section, {}))
+    return config.get(section, DEFAULT_CONFIG.get(section, {})).copy()
 
 def update_settings(section: str, settings: dict, page: str = "system"):
     config = load_config()

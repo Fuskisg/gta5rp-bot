@@ -1,11 +1,12 @@
-from flask import Blueprint, Response, jsonify
-import time
+from flask import Blueprint, Response, jsonify, render_template, request, send_from_directory
 import os
 import queue
+import logging
 import requests
-from core.common import hotkey_manager, state, clients, add_log
-from flask import jsonify, render_template, request,send_from_directory
+from core.common import hotkey_manager, state, clients, _clients_lock, add_log
 import core.common as common
+
+logger = logging.getLogger(__name__)
 
 api = Blueprint('api', __name__)
 
@@ -20,7 +21,7 @@ def index():
 @api.route('/api/set_active_tab/<name>', methods=['POST'])
 def set_active_tab(name):
     state["current_page"] = name
-    print(f"Активная вкладка изменена на: {name}")
+    logger.info(f"Активная вкладка изменена на: {name}")
     try:
         hotkey_manager.clear()
         try:
@@ -37,7 +38,8 @@ def set_active_tab(name):
 def events():
     def stream():
         q = queue.Queue()
-        clients.append(q)
+        with _clients_lock:
+            clients.append(q)
         for log in state["logs"]: 
             yield f"data: {log}\n\n"
         try:
@@ -50,8 +52,9 @@ def events():
         except GeneratorExit:
             pass
         finally:
-            if q in clients:
-                clients.remove(q)
+            with _clients_lock:
+                if q in clients:
+                    clients.remove(q)
     return Response(stream(), mimetype='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 @api.route('/api/get_logs')

@@ -11,6 +11,11 @@ window.logManager = {
         if (!container) return;
         const div = document.createElement('div');
         div.textContent = text;
+
+        if (text.includes("Сглаживание шрифтов: выключено")) {
+            div.classList.add('log-highlight');
+        }
+
         container.appendChild(div);
         if (container.children.length > 100) container.removeChild(container.firstChild);
         container.scrollTop = container.scrollHeight;
@@ -85,7 +90,6 @@ function loadPageContent(url) {
                 initSliders();
                 initSounds();
                 initTooltips();
-                refreshUIConfig();
                 container.classList.remove('loading');
                 
                 requestAnimationFrame(() => {
@@ -135,19 +139,15 @@ function initSliders() {
         // because :hover/:active on ::-webkit-slider-thumb don't trigger repaint in Qt
         slider.addEventListener('mouseenter', () => {
             slider.classList.add('is-hover');
-            void slider.offsetWidth;
         });
         slider.addEventListener('mouseleave', () => {
             slider.classList.remove('is-hover', 'is-active');
-            void slider.offsetWidth;
         });
         slider.addEventListener('mousedown', () => {
             slider.classList.add('is-active');
-            void slider.offsetWidth;
         });
         slider.addEventListener('mouseup', () => {
             slider.classList.remove('is-active');
-            void slider.offsetWidth;
         });
 
         update();
@@ -271,8 +271,9 @@ document.addEventListener('change', function(e) {
     const el = e.target;
     if (!el.classList.contains('checkbox-input')) return;
     el.classList.remove('is-checked', 'is-unchecked');
-    void el.offsetWidth; // force reflow so animation restarts
-    el.classList.add(el.checked ? 'is-checked' : 'is-unchecked');
+    requestAnimationFrame(() => {
+        el.classList.add(el.checked ? 'is-checked' : 'is-unchecked');
+    });
 }, true);
 
 window.sendLogsToTelegram = function() {
