@@ -37,6 +37,61 @@
     </div>
 </div>
 
+<div id="smoothing-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h3>⚠️ Сглаживание шрифтов выключено</h3>
+        <p>Для корректной работы бота необходимо включить сглаживание шрифтов в Windows.</p>
+        <div class="modal-buttons">
+            <button class="button" onclick="enableSmoothing()">Включить</button>
+            <button class="button" onclick="closeSmoothingModal()">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: #1e1e1e;
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 400px;
+    text-align: center;
+    border: 1px solid #444;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    color: #ff6b6b;
+}
+
+.modal-content p {
+    color: #ccc;
+    margin-bottom: 20px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.modal-buttons button {
+    padding: 10px 20px;
+}
+</style>
+
 <script>
 (function() {
     window.updatePageUI = function(active) {
@@ -67,9 +122,46 @@
         }
     };
 
+    window.showSmoothingModal = function() {
+        document.getElementById('smoothing-modal').style.display = 'flex';
+    };
+
+    window.closeSmoothingModal = function() {
+        document.getElementById('smoothing-modal').style.display = 'none';
+    };
+
+    window.enableSmoothing = async function() {
+        try {
+            const res = await fetch('/api/demorgan/enable-smoothing', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                const modalContent = document.querySelector('.modal-content');
+                modalContent.innerHTML = `
+                    <h3>✅ Сглаживание включено</h3>
+                    <p>Сглаживание шрифтов успешно включено. Для применения изменений необходимо перезапустить игру.</p>
+                    <div class="modal-buttons">
+                        <button class="button" onclick="closeSmoothingModal()">Закрыть</button>
+                    </div>
+                `;
+            }
+        } catch (err) {
+            console.error("Ошибка при включении сглаживания:", err);
+            alert("Не удалось включить сглаживание. Проверьте права администратора.");
+        }
+    };
+
     const serverStatus = "{{ 'true' if active else 'false' }}"; 
     window.updatePageUI(serverStatus === 'true');
     window.loadModuleLogs('demorgan');
+
+    const smoothingWarning = "{{ 'true' if smoothing_warning else 'false' }}";
+    if (smoothingWarning === 'true') {
+        window.showSmoothingModal();
+    }
 })();
 </script>
 {% endblock %}

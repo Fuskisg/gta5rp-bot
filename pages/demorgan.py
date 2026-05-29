@@ -68,17 +68,6 @@ def demorgan_worker():
     try:
         add_log(">>> Деморган запущен", page="demorgan")
 
-        try:
-            import winreg
-
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
-                smoothing, _ = winreg.QueryValueEx(key, "FontSmoothing")
-
-            if str(smoothing) == "0":
-                add_log("⚠️ Сглаживание шрифтов: выключено", page="demorgan")
-        except Exception:
-            pass
-
         tokar_pause = settings.get("tokar_pause", 65)
         shveika_pause = settings.get("shveika_pause", 85)
         shveika_exe = settings.get("shveika_exe", 0.1)
@@ -262,7 +251,20 @@ def toggle_demorgan():
 
 @demorgan_bp.route('/demorgan')
 def render_demorgan():
-    return render_template('demorgan.html', **state["modules"]["demorgan"])
+    smoothing_warning = False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+            smoothing, _ = winreg.QueryValueEx(key, "FontSmoothing")
+        if str(smoothing) == "0":
+            smoothing_warning = True
+            add_log("⚠️ Сглаживание шрифтов: выключено", page="demorgan")
+    except Exception:
+        pass
+    
+    template_data = state["modules"]["demorgan"].copy()
+    template_data["smoothing_warning"] = smoothing_warning
+    return render_template('demorgan.html', **template_data)
 
 def register_hotkeys(hm):
     hm.register('f6', toggle_demorgan)
@@ -285,3 +287,30 @@ def api_toggle():
         "status": "ok",
         "active": state["modules"]["demorgan"]["active"]
     })
+
+@demorgan_bp.route('/api/demorgan/enable-smoothing', methods=['POST'])
+def api_enable_smoothing():
+    try:
+        import winreg
+        
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop", 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, "FontSmoothing", 0, winreg.REG_SZ, "2")
+            winreg.SetValueEx(key, "FontSmoothingType", 0, winreg.REG_DWORD, 2)
+            winreg.SetValueEx(key, "FontSmoothingOrientation", 0, winreg.REG_DWORD, 0)
+            winreg.SetValueEx(key, "FontSmoothingGamma", 0, winreg.REG_DWORD, 0)
+        
+        import ctypes
+        SPI_SETFONTSMOOTHING = 0x004B
+        SPI_SETFONTSMOOTHINGTYPE = 0x200B
+        SPIF_UPDATEINIFILE = 0x01
+        SPIF_SENDCHANGE = 0x02
+        
+        ctypes.windll.user32.SystemParametersInfoW(SPI_SETFONTSMOOTHING, 2, None, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)
+        ctypes.windll.user32.SystemParametersInfoW(SPI_SETFONTSMOOTHINGTYPE, 2, None, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)
+        
+        add_log("✅ Сглаживание шрифтов (ClearType) включено", page="demorgan")
+        return jsonify({"success": True})
+        
+    except Exception as e:
+        add_log(f"❌ Ошибка: {str(e)}", page="demorgan")
+        return jsonify({"success": False, "error": str(e)})
