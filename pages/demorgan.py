@@ -292,21 +292,30 @@ def api_toggle():
 def api_enable_smoothing():
     try:
         import winreg
+        import ctypes
         
+        # 1. Пишем в реестр
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop", 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, "FontSmoothing", 0, winreg.REG_SZ, "2")
             winreg.SetValueEx(key, "FontSmoothingType", 0, winreg.REG_DWORD, 2)
-            winreg.SetValueEx(key, "FontSmoothingOrientation", 0, winreg.REG_DWORD, 0)
-            winreg.SetValueEx(key, "FontSmoothingGamma", 0, winreg.REG_DWORD, 0)
+            winreg.SetValueEx(key, "FontSmoothingOrientation", 0, winreg.REG_DWORD, 1)
+            winreg.SetValueEx(key, "FontSmoothingGamma", 0, winreg.REG_DWORD, 0x578)
         
-        import ctypes
+        # 2. Уведомляем систему через SystemParametersInfo
+        user32 = ctypes.windll.user32
+        
         SPI_SETFONTSMOOTHING = 0x004B
         SPI_SETFONTSMOOTHINGTYPE = 0x200B
         SPIF_UPDATEINIFILE = 0x01
         SPIF_SENDCHANGE = 0x02
+        flags = SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
         
-        ctypes.windll.user32.SystemParametersInfoW(SPI_SETFONTSMOOTHING, 2, None, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)
-        ctypes.windll.user32.SystemParametersInfoW(SPI_SETFONTSMOOTHINGTYPE, 2, None, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)
+        # Включаем сглаживание (1 = вкл)
+        user32.SystemParametersInfoW(SPI_SETFONTSMOOTHING, 1, None, flags)
+        
+        # Устанавливаем ClearType — pvParam должен быть указателем на DWORD = 2
+        pvParam = ctypes.c_uint32(2)
+        user32.SystemParametersInfoW(SPI_SETFONTSMOOTHINGTYPE, 0, ctypes.byref(pvParam), flags)
         
         add_log("✅ Сглаживание шрифтов (ClearType) включено", page="demorgan")
         return jsonify({"success": True})
