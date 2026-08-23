@@ -16,7 +16,7 @@ import numpy as np
 import mss
 
 cached_online = "загрузка..."
-version="4.5"
+version="4.6"
 cached_update = {"needs_update": False, "remote_version": "", "local_version": version}
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')

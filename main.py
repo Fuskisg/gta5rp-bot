@@ -13,7 +13,6 @@ import ctypes
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
-os.environ["QSG_RENDER_LOOP"] = "basic"
 
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtCore import QUrl, QObject, Slot, Qt
@@ -22,10 +21,8 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebChannel import QWebChannel
 
-fmt = QSurfaceFormat()
-fmt.setSwapInterval(0)
-fmt.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
-QSurfaceFormat.setDefaultFormat(fmt)
+QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL)
+
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600
@@ -77,7 +74,6 @@ class MainWindow(QMainWindow):
         self.move(x, y)
 
         self.browser = QWebEngineView(self)
-        self.browser.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self._page = ExternalPage(self.browser)
         self.browser.setPage(self._page)
         self.setCentralWidget(self.browser)
