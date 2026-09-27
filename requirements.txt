@@ -1,0 +1,14 @@
+# Python 3.10 or 3.11 is recommended (PyQt5/vgamepad are not reliable on Python 3.14)
+PyQt5==5.15.11
+pyautogui>=0.9.54
+PyGetWindow>=0.0.9
+keyboard>=0.13.5
+opencv-python>=4.8
+pydirectinput>=1.0.4
+vgamepad>=0.1.1
+colorama>=0.4.6
+requests>=2.31
+pynput>=1.7.6
+numpy>=1.24
+mss>=9.0
+Nuitka>=2.4
