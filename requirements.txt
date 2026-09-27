@@ -5,7 +5,7 @@ PyGetWindow>=0.0.9
 keyboard>=0.13.5
 opencv-python>=4.8
 pydirectinput>=1.0.4
-vgamepad>=0.1.1
+vgamepad==0.1.0
 colorama>=0.4.6
 requests>=2.31
 pynput>=1.7.6
